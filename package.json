@@ -1,0 +1,14 @@
+{
+  "name": "playwright-browser-mcp",
+  "version": "0.0.1",
+  "files": [
+    "./main.sh"
+  ],
+
+  "bin": {
+    "playwright-browser-mcp": "main.sh"
+  },
+  "dependencies": {
+    "@playwright/mcp": "latest"
+  }
+}
