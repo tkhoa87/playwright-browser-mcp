@@ -67,20 +67,17 @@ parse_arguments() {
   fi
   
   # Handle port and cdp-endpoint logic
-  ensure_config_dir
-  
   if [ "$port_set" = true ]; then
-    # Port was explicitly set via --port
-    echo "$REMOTE_DEBUGGING_PORT" > "$PORT_FILE"
-    export REMOTE_DEBUGGING_PORT
-  elif [ ! -f "$PORT_FILE" ]; then
-    # Port file doesn't exist, find available port starting from 9222
-    REMOTE_DEBUGGING_PORT=$(find_available_port 9222)
-    echo "$REMOTE_DEBUGGING_PORT" > "$PORT_FILE"
+    # Port explicit via --port; skip port.txt read/write
     export REMOTE_DEBUGGING_PORT
   else
-    # Port file exists, read from it
-    REMOTE_DEBUGGING_PORT=$(cat "$PORT_FILE")
+    ensure_config_dir
+    if [ ! -f "$PORT_FILE" ]; then
+      REMOTE_DEBUGGING_PORT=$(find_available_port 9222)
+      echo "$REMOTE_DEBUGGING_PORT" > "$PORT_FILE"
+    else
+      REMOTE_DEBUGGING_PORT=$(cat "$PORT_FILE")
+    fi
     export REMOTE_DEBUGGING_PORT
   fi
   
