@@ -4,12 +4,24 @@
 export const EXTRA_TOOLS = [
   {
     name: 'get_page_text',
+    title: 'Get page text',
+    annotations: {
+      title: 'Get page text',
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+    },
     description:
       "Read the visible text of the current page (document.body.innerText, trimmed by `maxChars`). " +
-      "PREFER THIS over `browser_snapshot` whenever you only need to read, summarize, search, " +
-      "extract data, verify copy, or confirm what's on the page. It skips the accessibility " +
-      "tree entirely and is typically 5–20× faster and orders of magnitude smaller in tokens " +
-      "on heavy DOMs (large lists, dashboards, articles). " +
+      "TOOL-CHOICE ORDER for any page-reading task: (1) `find` first if you know the text/role " +
+      "of a specific element; (2) `get_page_text` (this tool) if you need broader page content, " +
+      "to read, summarize, search, extract data, verify copy, or confirm what's on the page; " +
+      "(3) `browser_snapshot` only as last resort; (4) `browser_take_screenshot` as fallback " +
+      "when `browser_snapshot` times out or page is too heavy for the accessibility-tree walk. " +
+      "DO NOT call `browser_snapshot` first on a " +
+      "new task — start with `find` or `get_page_text`. This tool skips the accessibility tree " +
+      "entirely and is typically 5–20× faster and orders of magnitude smaller in tokens on " +
+      "heavy DOMs (large lists, dashboards, articles). " +
       "Returns plain text only — no refs, no roles, no selectors. " +
       "Use `browser_snapshot` only when you need element refs to act on (click/type/etc.) " +
       "and `find` won't locate them by text/role.",
@@ -28,16 +40,26 @@ export const EXTRA_TOOLS = [
   },
   {
     name: 'find',
+    title: 'Find elements',
+    annotations: {
+      title: 'Find elements',
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: true,
+    },
     description:
       "Locate elements on the current page by visible text (case-insensitive substring), " +
       "with an optional ARIA `role` filter. Returns up to 10 leaf-prefer matches; each match " +
       "includes `tag`, `role`, `ariaLabel`, `text` (truncated to 80 chars), and a CSS " +
       "`selector`. Leaf-prefer means containers that wrap another match are dropped, so you " +
       "get the most specific node (button, link, cell) rather than its parent. " +
-      "PREFER THIS over `browser_snapshot` whenever you already know the text or role of the " +
-      "element you want — e.g. \"find the 'Sign in' button\", \"find the row containing " +
-      "'INV-1234'\", \"find the link with text 'Pricing'\". Avoids the full accessibility-tree " +
-      "dump and returns a directly usable selector. " +
+      "TOOL-CHOICE ORDER for any page-interaction task: (1) `find` (this tool) FIRST whenever " +
+      "you know the text or role of the element — e.g. \"find the 'Sign in' button\", \"find " +
+      "the row containing 'INV-1234'\", \"find the link with text 'Pricing'\"; (2) " +
+      "`get_page_text` if you only need to read/summarize page content; (3) `browser_snapshot` " +
+      "only as last resort; (4) `browser_take_screenshot` as fallback when `browser_snapshot` " +
+      "times out or page is too heavy. DO NOT call `browser_snapshot` first on a new task — start here. " +
+      "Avoids the full accessibility-tree dump and returns a directly usable selector. " +
       "Use `browser_snapshot` only when the element you need is not text-identifiable (icon-" +
       "only button, ambiguous role) or when you need the full structure of the page.",
     inputSchema: {
@@ -68,12 +90,31 @@ export function augmentTools(tools) {
         ...t,
         description:
           (t.description ?? 'Capture accessibility snapshot of the current page.') +
-          ' EXPENSIVE on large pages (multi-second walk of the entire accessibility tree, ' +
-          'multi-MB response). Before calling this, ask: do I actually need element refs ' +
-          'to act on? If you only need to read text, call `get_page_text`. If you know the ' +
-          'text/role of the element you want, call `find`. Use `browser_snapshot` only when ' +
-          'neither of those works — e.g. complex layouts, icon-only controls, or when you ' +
-          'need the full page structure.',
+          ' EXPENSIVE LAST-RESORT TOOL. Multi-second walk of the entire accessibility tree, ' +
+          'multi-MB response — costs 5–20× more time and tokens than the alternatives. ' +
+          'TOOL-CHOICE ORDER (mandatory): (1) `find` FIRST if you know the text/role of a ' +
+          'specific element — returns a usable selector directly; (2) `get_page_text` if you ' +
+          'only need to read, summarize, search, extract, or verify page content; (3) THIS ' +
+          'tool only if both above fail to fit — e.g. element is icon-only, role is ambiguous, ' +
+          'or you genuinely need the full page structure with refs to act on; (4) ' +
+          '`browser_take_screenshot` as fallback when THIS tool times out or the page is too ' +
+          'heavy for the accessibility-tree walk. ' +
+          'NEVER call this first when starting a new task — start with `find` or ' +
+          '`get_page_text`. If you reflexively reach for `browser_snapshot`, stop and pick ' +
+          'one of the other two.',
+      };
+    }
+    if (t.name === 'browser_take_screenshot') {
+      return {
+        ...t,
+        description:
+          (t.description ?? 'Take a screenshot of the current page.') +
+          ' FALLBACK TOOL — step (4) in the page-reading order. Use only when ' +
+          '`browser_snapshot` times out or the page is too heavy for the accessibility-tree ' +
+          'walk. TOOL-CHOICE ORDER (mandatory): (1) `find` if you know the text/role of an ' +
+          'element; (2) `get_page_text` for reading/summarizing page content; (3) ' +
+          '`browser_snapshot` for full structure with refs; (4) THIS tool only when (3) fails. ' +
+          'Returns a PNG — no element refs, cannot be used to click/type. Pick (1)–(3) first.',
       };
     }
     if (t.name === 'browser_console_messages') {
