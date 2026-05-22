@@ -88,6 +88,8 @@ Or add to `~/.gemini/settings.json` (user-level) or `.gemini/settings.json` (pro
 
 | Flag | Default | Description |
 |------|---------|-------------|
+| `-h`, `--help` | — | Print wrapper help followed by upstream `@playwright/mcp --help` and exit. |
+| `-V`, `--version` | — | Print wrapper version and resolved `@playwright/mcp` version, then exit (no Chrome launch). |
 | `--port <N>` | Auto-detected from 9222 | Chrome CDP debugging port |
 | `--output-dir <path>` | `.playwright-mcp/output` | Directory for screenshots and artifacts |
 | `--cdp-endpoint <url>` | `http://localhost:<port>` | CDP endpoint URL (overrides port) |
@@ -96,7 +98,7 @@ Or add to `~/.gemini/settings.json` (user-level) or `.gemini/settings.json` (pro
 | `--no-proxy` | proxy on | Disable the proxy front-end and serve `@playwright/mcp` directly (no `get_page_text`, no `find`, no filtered console/network). Env equivalent: `PW_MCP_NO_PROXY=1`. |
 | `--proxy` | — | Force the proxy on if it has been disabled by env. Env equivalent: `PW_MCP_PROXY=1`. |
 
-All other arguments are passed through to `@playwright/mcp`.
+All other arguments are passed through to `@playwright/mcp`. See `playwright-browser-mcp --help` for the full upstream flag list.
 
 ## Extra MCP tools (proxy mode, on by default)
 
@@ -163,14 +165,23 @@ from a ~2 s floor to single-digit ms. The patch is applied automatically via
 ### Examples
 
 ```sh
+# Print wrapper + upstream help
+playwright-browser-mcp --help
+
+# Print versions and exit
+playwright-browser-mcp --version
+
 # Use a specific port
-./main.sh --port 9333
+playwright-browser-mcp --port 9333
 
 # Custom output directory
-./main.sh --output-dir ./screenshots
+playwright-browser-mcp --output-dir ./screenshots
 
 # Connect to an existing Chrome instance
-./main.sh --cdp-endpoint http://localhost:9222
+playwright-browser-mcp --cdp-endpoint http://localhost:9222
+
+# Disable the proxy (vanilla @playwright/mcp behavior)
+playwright-browser-mcp --no-proxy
 ```
 
 ## How it works
