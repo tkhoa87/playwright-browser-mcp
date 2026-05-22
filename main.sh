@@ -29,13 +29,17 @@ ensure_config_dir() {
 
 # Global array for parsed arguments
 PARSED_ARGS=()
+# Whether the user opted into the proxy front-end (off by default).
+USE_PROXY=false
 
 # Parse arguments and set defaults
 parse_arguments() {
   local port_set=false
   local output_dir_set=false
   local cdp_endpoint_set=false
-  
+  local snapshot_mode_set=false
+  local image_responses_set=false
+
   while [[ $# -gt 0 ]]; do
     case $1 in
       --port)
@@ -54,12 +58,44 @@ parse_arguments() {
         cdp_endpoint_set=true
         shift 2
         ;;
+      --snapshot-mode)
+        snapshot_mode_set=true
+        PARSED_ARGS+=("$1" "$2")
+        shift 2
+        ;;
+      --image-responses)
+        image_responses_set=true
+        PARSED_ARGS+=("$1" "$2")
+        shift 2
+        ;;
+      --proxy)
+        # Opt into the proxy front-end (get_page_text, find, filtered console/network).
+        USE_PROXY=true
+        shift
+        ;;
+      --no-proxy)
+        USE_PROXY=false
+        shift
+        ;;
       *)
         PARSED_ARGS+=("$1")
         shift
         ;;
     esac
   done
+
+  # Env override: PW_MCP_PROXY=1 enables proxy even without --proxy flag.
+  if [ "${PW_MCP_PROXY:-}" = "1" ]; then
+    USE_PROXY=true
+  fi
+
+  # Performance defaults — see README. Both override-able by caller.
+  if [ "$snapshot_mode_set" = false ]; then
+    PARSED_ARGS+=("--snapshot-mode" "none")
+  fi
+  if [ "$image_responses_set" = false ]; then
+    PARSED_ARGS+=("--image-responses" "omit")
+  fi
   
   # Set default output-dir if not provided
   if [ "$output_dir_set" = false ]; then
@@ -99,10 +135,18 @@ start_simple_browser() {
   start_simple_browser
 } >/dev/null
 
-# Start the MCP server with parsed arguments
-npx \
-  --yes \
-  --no-progress \
-  @playwright/mcp \
-  -- \
-  "${PARSED_ARGS[@]}"
+# Start the MCP server with parsed arguments.
+# Use the locally-installed (patched) @playwright/mcp instead of `npx --yes`
+# so the postinstall patch-package step takes effect.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MCP_CLI="${SCRIPT_DIR}/node_modules/@playwright/mcp/cli.js"
+PROXY="${SCRIPT_DIR}/src/proxy.mjs"
+if [ ! -f "$MCP_CLI" ]; then
+  echo "playwright-browser-mcp: missing $MCP_CLI — did you run 'npm install'?" >&2
+  exit 1
+fi
+if [ "$USE_PROXY" = "true" ] && [ -f "$PROXY" ]; then
+  export PW_MCP_CLI="$MCP_CLI"
+  exec node "$PROXY" "${PARSED_ARGS[@]}"
+fi
+exec node "$MCP_CLI" "${PARSED_ARGS[@]}"
