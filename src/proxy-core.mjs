@@ -4,22 +4,57 @@
 export const EXTRA_TOOLS = [
   {
     name: 'get_page_text',
-    description: 'Return document.body.innerText, truncated. Skips the accessibility tree — cheap. Use when you only need page text, not refs.',
+    description:
+      "Read the visible text of the current page (document.body.innerText, trimmed by `maxChars`). " +
+      "PREFER THIS over `browser_snapshot` whenever you only need to read, summarize, search, " +
+      "extract data, verify copy, or confirm what's on the page. It skips the accessibility " +
+      "tree entirely and is typically 5–20× faster and orders of magnitude smaller in tokens " +
+      "on heavy DOMs (large lists, dashboards, articles). " +
+      "Returns plain text only — no refs, no roles, no selectors. " +
+      "Use `browser_snapshot` only when you need element refs to act on (click/type/etc.) " +
+      "and `find` won't locate them by text/role.",
     inputSchema: {
       type: 'object',
       properties: {
-        maxChars: { type: 'number', description: 'Max characters to return. Default 200000.' },
+        maxChars: {
+          type: 'number',
+          description:
+            'Maximum number of characters to return. Default 200000. Use a smaller cap ' +
+            '(e.g. 2000–5000) when scanning for the gist of a page; raise it only when you ' +
+            'specifically need long content like an article body or a long list.',
+        },
       },
     },
   },
   {
     name: 'find',
-    description: 'Search the DOM for elements whose visible text contains <query>. Optional role filter. Returns up to 10 matches with tag, role, aria-label, text, and a CSS selector. Leaf-prefer: ancestors of other matches are dropped.',
+    description:
+      "Locate elements on the current page by visible text (case-insensitive substring), " +
+      "with an optional ARIA `role` filter. Returns up to 10 leaf-prefer matches; each match " +
+      "includes `tag`, `role`, `ariaLabel`, `text` (truncated to 80 chars), and a CSS " +
+      "`selector`. Leaf-prefer means containers that wrap another match are dropped, so you " +
+      "get the most specific node (button, link, cell) rather than its parent. " +
+      "PREFER THIS over `browser_snapshot` whenever you already know the text or role of the " +
+      "element you want — e.g. \"find the 'Sign in' button\", \"find the row containing " +
+      "'INV-1234'\", \"find the link with text 'Pricing'\". Avoids the full accessibility-tree " +
+      "dump and returns a directly usable selector. " +
+      "Use `browser_snapshot` only when the element you need is not text-identifiable (icon-" +
+      "only button, ambiguous role) or when you need the full structure of the page.",
     inputSchema: {
       type: 'object',
       properties: {
-        query: { type: 'string', description: 'Substring to match (case-insensitive) against innerText.' },
-        role: { type: 'string', description: 'Optional ARIA role to filter by.' },
+        query: {
+          type: 'string',
+          description:
+            'Substring to match (case-insensitive) against the element\'s visible innerText. ' +
+            'Keep it specific — broad queries like "a" or "button" will hit many nodes.',
+        },
+        role: {
+          type: 'string',
+          description:
+            'Optional ARIA role to require (e.g. "button", "link", "textbox", "checkbox"). ' +
+            'Combine with `query` to disambiguate when multiple elements share the same text.',
+        },
       },
       required: ['query'],
     },
@@ -28,27 +63,70 @@ export const EXTRA_TOOLS = [
 
 export function augmentTools(tools) {
   const out = tools.map(t => {
-    if (t.name === 'browser_console_messages') {
+    if (t.name === 'browser_snapshot') {
       return {
         ...t,
+        description:
+          (t.description ?? 'Capture accessibility snapshot of the current page.') +
+          ' EXPENSIVE on large pages (multi-second walk of the entire accessibility tree, ' +
+          'multi-MB response). Before calling this, ask: do I actually need element refs ' +
+          'to act on? If you only need to read text, call `get_page_text`. If you know the ' +
+          'text/role of the element you want, call `find`. Use `browser_snapshot` only when ' +
+          'neither of those works — e.g. complex layouts, icon-only controls, or when you ' +
+          'need the full page structure.',
+      };
+    }
+    if (t.name === 'browser_console_messages') {
+      const existing = t.inputSchema ?? { type: 'object', properties: {} };
+      return {
+        ...t,
+        description:
+          (t.description ?? 'Returns all console messages.') +
+          ' Output can be very verbose on chatty pages — use `pattern` (regex) to filter ' +
+          'lines (e.g. `pattern: "\\\\[MyApp\\\\]"`) or `onlyErrors: true` to keep just ' +
+          'error/warning lines. Filtering happens server-side, so it cuts response tokens.',
         inputSchema: {
-          ...(t.inputSchema ?? { type: 'object', properties: {} }),
+          ...existing,
           properties: {
-            ...((t.inputSchema && t.inputSchema.properties) ?? {}),
-            pattern: { type: 'string', description: 'Optional regex; only lines matching are returned.' },
-            onlyErrors: { type: 'boolean', description: 'Drop non-error lines.' },
+            ...(existing.properties ?? {}),
+            pattern: {
+              type: 'string',
+              description:
+                'Regex. Only console lines matching this expression are returned. ' +
+                'Filter is applied to the rendered text of each line (including level prefix). ' +
+                'Use when scanning for specific log tags or error messages.',
+            },
+            onlyErrors: {
+              type: 'boolean',
+              description:
+                'When true, drop any line that does not look like an error or warning. ' +
+                'Use when triaging failures — much cheaper than reading all logs.',
+            },
           },
         },
       };
     }
     if (t.name === 'browser_network_requests') {
+      const existing = t.inputSchema ?? { type: 'object', properties: {} };
       return {
         ...t,
+        description:
+          (t.description ?? 'Returns a numbered list of network requests since loading the page.') +
+          ' Output can be huge on resource-heavy pages — use `urlPattern` (regex) to narrow ' +
+          'the list to the calls you care about (e.g. `urlPattern: "/api/"`). Filtering ' +
+          'happens server-side; pair with `browser_network_request` (singular) to fetch ' +
+          'full details for a specific entry by index.',
         inputSchema: {
-          ...(t.inputSchema ?? { type: 'object', properties: {} }),
+          ...existing,
           properties: {
-            ...((t.inputSchema && t.inputSchema.properties) ?? {}),
-            urlPattern: { type: 'string', description: 'Optional regex matched against the request URL line.' },
+            ...(existing.properties ?? {}),
+            urlPattern: {
+              type: 'string',
+              description:
+                'Regex matched against each request line. Use to focus on a subset (API ' +
+                'calls, a specific host, a path prefix). Example: "^GET /api/" keeps only ' +
+                'GET requests under /api/.',
+            },
           },
         },
       };

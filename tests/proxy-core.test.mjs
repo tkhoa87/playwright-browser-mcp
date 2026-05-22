@@ -29,6 +29,36 @@ test('augmentTools adds urlPattern to browser_network_requests', () => {
   assert.ok(t.inputSchema.properties.urlPattern);
 });
 
+test('augmentTools annotates browser_snapshot as expensive and points at alternatives', () => {
+  const out = augmentTools([{ name: 'browser_snapshot', description: 'Capture accessibility snapshot of the current page' }]);
+  const t = out.find(x => x.name === 'browser_snapshot');
+  assert.match(t.description, /EXPENSIVE/);
+  assert.match(t.description, /get_page_text/);
+  assert.match(t.description, /find/);
+});
+
+test('augmentTools annotates browser_console_messages with filter guidance', () => {
+  const out = augmentTools([{ name: 'browser_console_messages', description: 'Returns all console messages', inputSchema: { type: 'object', properties: {} } }]);
+  const t = out.find(x => x.name === 'browser_console_messages');
+  assert.match(t.description, /pattern/);
+  assert.match(t.description, /onlyErrors/);
+  assert.match(t.inputSchema.properties.pattern.description, /Regex/);
+});
+
+test('augmentTools annotates browser_network_requests with urlPattern guidance', () => {
+  const out = augmentTools([{ name: 'browser_network_requests', description: 'Returns network requests' }]);
+  const t = out.find(x => x.name === 'browser_network_requests');
+  assert.match(t.description, /urlPattern/);
+  assert.match(t.inputSchema.properties.urlPattern.description, /Regex/);
+});
+
+test('EXTRA_TOOLS describe themselves as preferred over snapshot', () => {
+  const txt = EXTRA_TOOLS.find(t => t.name === 'get_page_text');
+  assert.match(txt.description, /PREFER THIS over `browser_snapshot`/);
+  const find = EXTRA_TOOLS.find(t => t.name === 'find');
+  assert.match(find.description, /PREFER THIS over `browser_snapshot`/);
+});
+
 test('augmentTools is non-destructive (input not mutated)', () => {
   const input = [{ name: 'browser_console_messages', inputSchema: { type: 'object', properties: {} } }];
   const snapshot = JSON.stringify(input);
