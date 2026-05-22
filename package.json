@@ -1,6 +1,6 @@
 {
   "name": "playwright-browser-mcp",
-  "version": "1.3.3",
+  "version": "1.4.0",
   "files": [
     "./main.sh",
     "./src",
@@ -14,7 +14,7 @@
     "test": "node --test 'tests/**/*.test.mjs'"
   },
   "dependencies": {
-    "@playwright/mcp": "latest",
-    "patch-package": "latest"
+    "@playwright/mcp": "0.0.75",
+    "patch-package": "8.0.1"
   }
 }
