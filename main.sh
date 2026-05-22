@@ -141,7 +141,14 @@ start_simple_browser() {
 # Start the MCP server with parsed arguments.
 # Use the locally-installed (patched) @playwright/mcp instead of `npx --yes`
 # so the postinstall patch-package step takes effect.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Resolve real script path (npx installs us via a symlink in node_modules/.bin).
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
 MCP_CLI="${SCRIPT_DIR}/node_modules/@playwright/mcp/cli.js"
 PROXY="${SCRIPT_DIR}/src/proxy.mjs"
 if [ ! -f "$MCP_CLI" ]; then
