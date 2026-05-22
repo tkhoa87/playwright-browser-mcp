@@ -149,10 +149,15 @@ while [ -L "$SOURCE" ]; do
   [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
 done
 SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
-MCP_CLI="${SCRIPT_DIR}/node_modules/@playwright/mcp/cli.js"
+# Use Node's resolver so flattened npm layouts (where @playwright/mcp ends up
+# in a parent node_modules/) work.
+MCP_CLI="$(node -e "
+const p = require.resolve('@playwright/mcp/package.json', { paths: [process.argv[1]] });
+process.stdout.write(require('path').join(require('path').dirname(p), 'cli.js'));
+" "$SCRIPT_DIR" 2>/dev/null || true)"
 PROXY="${SCRIPT_DIR}/src/proxy.mjs"
-if [ ! -f "$MCP_CLI" ]; then
-  echo "playwright-browser-mcp: missing $MCP_CLI — did you run 'npm install'?" >&2
+if [ -z "$MCP_CLI" ] || [ ! -f "$MCP_CLI" ]; then
+  echo "playwright-browser-mcp: cannot resolve @playwright/mcp from $SCRIPT_DIR — did you run 'npm install'?" >&2
   exit 1
 fi
 if [ "$USE_PROXY" = "true" ] && [ -f "$PROXY" ]; then

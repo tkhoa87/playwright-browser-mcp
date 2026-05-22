@@ -12,12 +12,20 @@
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { augmentTools, classifyToolCall, filterContent } from './proxy-core.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const upstreamCli = process.env.PW_MCP_CLI
-  ?? path.resolve(__dirname, '..', 'node_modules', '@playwright', 'mcp', 'cli.js');
+const upstreamCli = process.env.PW_MCP_CLI ?? (() => {
+  try {
+    const req = createRequire(import.meta.url);
+    const pkg = req.resolve('@playwright/mcp/package.json');
+    return path.join(path.dirname(pkg), 'cli.js');
+  } catch {
+    return path.resolve(__dirname, '..', 'node_modules', '@playwright', 'mcp', 'cli.js');
+  }
+})();
 
 const child = spawn('node', [upstreamCli, ...process.argv.slice(2)], {
   stdio: ['pipe', 'pipe', 'inherit'],
