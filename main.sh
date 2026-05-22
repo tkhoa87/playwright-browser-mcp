@@ -29,8 +29,8 @@ ensure_config_dir() {
 
 # Global array for parsed arguments
 PARSED_ARGS=()
-# Whether the user opted into the proxy front-end (off by default).
-USE_PROXY=false
+# Proxy front-end is on by default. Disable with --no-proxy or PW_MCP_NO_PROXY=1.
+USE_PROXY=true
 
 # Parse arguments and set defaults
 parse_arguments() {
@@ -84,9 +84,12 @@ parse_arguments() {
     esac
   done
 
-  # Env override: PW_MCP_PROXY=1 enables proxy even without --proxy flag.
+  # Env overrides. PW_MCP_PROXY=1 forces on; PW_MCP_NO_PROXY=1 forces off.
   if [ "${PW_MCP_PROXY:-}" = "1" ]; then
     USE_PROXY=true
+  fi
+  if [ "${PW_MCP_NO_PROXY:-}" = "1" ]; then
+    USE_PROXY=false
   fi
 
   # Performance defaults — see README. Both override-able by caller.
