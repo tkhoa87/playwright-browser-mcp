@@ -54,6 +54,18 @@ PROXY="${SCRIPT_DIR}/src/proxy.mjs"
 PKG_JSON="${SCRIPT_DIR}/package.json"
 PKG_VERSION="$(node -p "require('$PKG_JSON').version" 2>/dev/null || echo "unknown")"
 
+# Intercept --version / -V: print wrapper + upstream version, then exit.
+for arg in "$@"; do
+  if [ "$arg" = "--version" ] || [ "$arg" = "-V" ]; then
+    echo "playwright-browser-mcp ${PKG_VERSION}"
+    if [ -n "$MCP_CLI" ] && [ -f "$MCP_CLI" ]; then
+      upstream_ver="$(node -p "require(require('path').join(require('path').dirname('$MCP_CLI'),'package.json')).version" 2>/dev/null || echo unknown)"
+      echo "@playwright/mcp ${upstream_ver}"
+    fi
+    exit 0
+  fi
+done
+
 # Intercept --help / -h: print our wrapper's help, then upstream's help, then exit.
 for arg in "$@"; do
   if [ "$arg" = "--help" ] || [ "$arg" = "-h" ]; then
@@ -68,6 +80,8 @@ Usage:
   playwright-browser-mcp [wrapper flags] [-- @playwright/mcp flags...]
 
 Wrapper flags (handled here, not forwarded):
+  -h, --help            Print this help (wrapper + upstream) and exit.
+  -V, --version         Print wrapper and upstream @playwright/mcp version.
   --port <N>            Chrome CDP debugging port. Auto-detected from 9222 and
                         persisted to .playwright-mcp/port.txt.
   --output-dir <path>   Directory for screenshots/artifacts. Default
