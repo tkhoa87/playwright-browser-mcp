@@ -14,7 +14,7 @@
     "test": "node --test 'tests/**/*.test.mjs'"
   },
   "dependencies": {
-    "@playwright/mcp": "0.0.75",
-    "patch-package": "8.0.1"
+    "@playwright/mcp": "^0.0.75",
+    "patch-package": "^8.0.1"
   }
 }
