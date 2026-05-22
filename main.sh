@@ -32,6 +32,89 @@ PARSED_ARGS=()
 # Proxy front-end is on by default. Disable with --no-proxy or PW_MCP_NO_PROXY=1.
 USE_PROXY=true
 
+# Resolve real script path (npx installs us via a symlink in node_modules/.bin).
+resolve_script_dir() {
+  local source="${BASH_SOURCE[0]}"
+  local dir
+  while [ -L "$source" ]; do
+    dir="$(cd -P "$(dirname "$source")" && pwd)"
+    source="$(readlink "$source")"
+    [[ $source != /* ]] && source="$dir/$source"
+  done
+  cd -P "$(dirname "$source")" && pwd
+}
+SCRIPT_DIR="$(resolve_script_dir)"
+# Use Node's resolver so flattened npm layouts (where @playwright/mcp ends up
+# in a parent node_modules/) work.
+MCP_CLI="$(node -e "
+const p = require.resolve('@playwright/mcp/package.json', { paths: [process.argv[1]] });
+process.stdout.write(require('path').join(require('path').dirname(p), 'cli.js'));
+" "$SCRIPT_DIR" 2>/dev/null || true)"
+PROXY="${SCRIPT_DIR}/src/proxy.mjs"
+PKG_JSON="${SCRIPT_DIR}/package.json"
+PKG_VERSION="$(node -p "require('$PKG_JSON').version" 2>/dev/null || echo "unknown")"
+
+# Intercept --help / -h: print our wrapper's help, then upstream's help, then exit.
+for arg in "$@"; do
+  if [ "$arg" = "--help" ] || [ "$arg" = "-h" ]; then
+    cat <<EOF
+playwright-browser-mcp v${PKG_VERSION}
+
+Lightweight wrapper around @playwright/mcp. Starts Chrome via simple-browser,
+auto-manages the CDP port, and (by default) fronts the MCP server with a small
+proxy that adds faster page-reading tools.
+
+Usage:
+  playwright-browser-mcp [wrapper flags] [-- @playwright/mcp flags...]
+
+Wrapper flags (handled here, not forwarded):
+  --port <N>            Chrome CDP debugging port. Auto-detected from 9222 and
+                        persisted to .playwright-mcp/port.txt.
+  --output-dir <path>   Directory for screenshots/artifacts. Default
+                        .playwright-mcp/output.
+  --cdp-endpoint <url>  Override CDP endpoint (skips port auto-detect).
+  --snapshot-mode <m>   Default "none" (skip the accessibility-tree walk per
+                        tool response — see README). Pass "full" to restore
+                        upstream behavior.
+  --image-responses <m> Default "omit" (drop screenshot PNG bytes from MCP
+                        responses). Pass "allow" to inline them.
+  --proxy               Force the proxy front-end on (default).
+  --no-proxy            Disable the proxy and serve @playwright/mcp directly.
+                        Drops get_page_text, find, filtered console/network.
+
+Environment:
+  PW_MCP_PROXY=1        Force proxy on (same as --proxy).
+  PW_MCP_NO_PROXY=1     Force proxy off (same as --no-proxy).
+
+Proxy tools (on by default):
+  get_page_text         Return document.body.innerText (truncated). PREFER over
+                        browser_snapshot for read-only tasks — 5-20x faster on
+                        heavy DOMs, no accessibility-tree walk.
+  find                  Locate elements by visible text (and optional ARIA
+                        role). Returns up to 10 leaf-prefer matches with CSS
+                        selector. PREFER over browser_snapshot when the
+                        element's text/role is known.
+  browser_console_messages
+                        Augmented with pattern (regex) and onlyErrors filters.
+                        Server-side filtering — cuts response tokens.
+  browser_network_requests
+                        Augmented with urlPattern (regex) filter. Server-side.
+
+All other arguments are passed through to @playwright/mcp.
+
+==============================================================================
+Upstream @playwright/mcp help:
+==============================================================================
+EOF
+    if [ -n "$MCP_CLI" ] && [ -f "$MCP_CLI" ]; then
+      node "$MCP_CLI" --help
+    else
+      echo "(could not locate @playwright/mcp to show its --help — run 'npm install')" >&2
+    fi
+    exit 0
+  fi
+done
+
 # Parse arguments and set defaults
 parse_arguments() {
   local port_set=false
@@ -141,21 +224,6 @@ start_simple_browser() {
 # Start the MCP server with parsed arguments.
 # Use the locally-installed (patched) @playwright/mcp instead of `npx --yes`
 # so the postinstall patch-package step takes effect.
-# Resolve real script path (npx installs us via a symlink in node_modules/.bin).
-SOURCE="${BASH_SOURCE[0]}"
-while [ -L "$SOURCE" ]; do
-  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
-  SOURCE="$(readlink "$SOURCE")"
-  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
-done
-SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
-# Use Node's resolver so flattened npm layouts (where @playwright/mcp ends up
-# in a parent node_modules/) work.
-MCP_CLI="$(node -e "
-const p = require.resolve('@playwright/mcp/package.json', { paths: [process.argv[1]] });
-process.stdout.write(require('path').join(require('path').dirname(p), 'cli.js'));
-" "$SCRIPT_DIR" 2>/dev/null || true)"
-PROXY="${SCRIPT_DIR}/src/proxy.mjs"
 if [ -z "$MCP_CLI" ] || [ ! -f "$MCP_CLI" ]; then
   echo "playwright-browser-mcp: cannot resolve @playwright/mcp from $SCRIPT_DIR — did you run 'npm install'?" >&2
   exit 1
