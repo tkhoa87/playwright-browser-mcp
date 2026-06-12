@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "playwright": {
+    "browser": {
       "command": "./main.sh"
     }
   }

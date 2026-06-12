@@ -1,27 +1,69 @@
 # playwright-browser-mcp
 
-A lightweight wrapper around [`@playwright/mcp`](https://github.com/nicholasgriffintn/playwright-mcp) that automatically starts a Chrome instance and connects it to a Playwright MCP server via the Chrome DevTools Protocol (CDP).
+A tiny wrapper that connects a browser-automation MCP server to a shared, already-running Chrome instance.
 
 ## What it does
 
-1. Launches Chrome using [`simple-browser`](https://www.npmjs.com/package/simple-browser)
-2. Auto-detects an available CDP port (starting from 9222)
-3. Starts the `@playwright/mcp` server connected to that browser
+1. Loads config (MCP server, CDP port, browser) from `.playwright-mcp/config.yml` (created on first run; port auto-detected from `9222`).
+2. If the browser isn't listening on that port, starts one via [`simple-browser`](https://www.npmjs.com/package/simple-browser).
+3. Runs the chosen MCP server connected to that browser — it never launches its own.
 
-This gives MCP clients (like Claude Code) full browser automation capabilities — clicking, typing, navigating, taking screenshots, and more — without manual browser setup.
+This gives MCP clients (like Claude Code) full browser automation — clicking, typing, navigating, screenshots — against a single shared Chrome instance.
 
-## Prerequisites
+## Supported MCP servers
 
-- Node.js and npm
-- `lsof` (standard on macOS/Linux)
+| `--mcp` value | Server | Connection flag used |
+|-------|--------|----------------------|
+| `playwright` (default) | [`@playwright/mcp`](https://github.com/microsoft/playwright-mcp) | `--cdp-endpoint` |
+| `chrome-devtools` | [`chrome-devtools-mcp`](https://github.com/ChromeDevTools/chrome-devtools-mcp) | `--browserUrl` |
 
-## Quick start
-
-### With npx (no install)
+## Usage
 
 ```sh
+# Playwright MCP (default)
 npx --yes playwright-browser-mcp@latest
+
+# Chrome DevTools MCP
+npx --yes playwright-browser-mcp@latest --mcp chrome-devtools
+
+# All flags
+npx --yes playwright-browser-mcp@latest --mcp chrome-devtools --port 9333 --browser electron
 ```
+
+## Flags
+
+| Flag | Description |
+|------|-------------|
+| `--mcp <name>` | MCP server: `playwright` or `chrome-devtools`. |
+| `--port <N>` | Browser CDP debugging port. |
+| `--browser <name>` | Browser started by `simple-browser`: `chrome` or `electron`. |
+| `-h`, `--help` | Show help and exit. |
+
+Unknown arguments are rejected.
+
+## Persisted config (`.playwright-mcp/config.yml`)
+
+Each value resolves as **flag > `config.yml` > default** (port also falls back to legacy `port.txt` before detecting a free port). Resolved values are written back to `config.yml` after every run; legacy txt files are removed.
+
+```yaml
+# MCP server to run.
+# Values: playwright | chrome-devtools (default: playwright)
+mcp: playwright
+
+# Browser CDP debugging port.
+# Values: any TCP port (default: first free port from 9222, detected once)
+port: 9222
+
+# Browser started by simple-browser when nothing is listening on the port.
+# Values: chrome | electron (default: chrome)
+browser: chrome
+```
+
+Playwright MCP screenshots/artifacts go to `.playwright-mcp/output` (chrome-devtools-mcp has no output-dir flag).
+
+## Token/perf defaults
+
+The wrapper passes opinionated defaults to `@playwright/mcp` (rationale in `main.sh` comments): `--snapshot-mode none` (no accessibility-tree YAML on every response), `--image-responses omit` (no inline screenshot bytes), `--output-mode file` (big payloads go to `.playwright-mcp/output`, referenced not inlined). `chrome-devtools-mcp` runs with upstream defaults.
 
 ## Installation
 
@@ -29,6 +71,8 @@ npx --yes playwright-browser-mcp@latest
 
 ```sh
 claude mcp add playwright -- npx --yes playwright-browser-mcp@latest
+# or
+claude mcp add chrome-devtools -- npx --yes playwright-browser-mcp@latest --mcp chrome-devtools
 ```
 
 Or add to your project's `.mcp.json`:
@@ -46,18 +90,7 @@ Or add to your project's `.mcp.json`:
 
 ### Cursor
 
-Go to **Cursor Settings** > **MCP** > **Add new global MCP server** and paste:
-
-```json
-{
-  "mcpServers": {
-    "playwright": {
-      "command": "npx",
-      "args": ["--yes", "playwright-browser-mcp@latest"]
-    }
-  }
-}
-```
+Go to **Cursor Settings** > **MCP** > **Add new global MCP server** and paste the same JSON as above.
 
 ### Codex CLI
 
@@ -71,132 +104,10 @@ codex mcp add playwright -- npx --yes playwright-browser-mcp@latest
 gemini mcp add playwright npx --yes playwright-browser-mcp@latest
 ```
 
-Or add to `~/.gemini/settings.json` (user-level) or `.gemini/settings.json` (project-level):
+## Prerequisites
 
-```json
-{
-  "mcpServers": {
-    "playwright": {
-      "command": "npx",
-      "args": ["--yes", "playwright-browser-mcp@latest"]
-    }
-  }
-}
-```
-
-## CLI flags
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `-h`, `--help` | — | Print wrapper help followed by upstream `@playwright/mcp --help` and exit. |
-| `-V`, `--version` | — | Print wrapper version and resolved `@playwright/mcp` version, then exit (no Chrome launch). |
-| `--port <N>` | Auto-detected from 9222 | Chrome CDP debugging port |
-| `--output-dir <path>` | `.playwright-mcp/output` | Directory for screenshots and artifacts |
-| `--cdp-endpoint <url>` | `http://localhost:<port>` | CDP endpoint URL (overrides port) |
-| `--snapshot-mode <mode>` | `none` | Set to `full` to restore upstream's "snapshot YAML on every tool response" behavior. `none` is the speed-default. |
-| `--image-responses <mode>` | `omit` | Set to `allow` to inline screenshot PNG bytes in MCP responses. |
-| `--no-proxy` | proxy on | Disable the proxy front-end and serve `@playwright/mcp` directly (no `get_page_text`, no `find`, no filtered console/network). Env equivalent: `PW_MCP_NO_PROXY=1`. |
-| `--proxy` | — | Force the proxy on if it has been disabled by env. Env equivalent: `PW_MCP_PROXY=1`. |
-
-All other arguments are passed through to `@playwright/mcp`. See `playwright-browser-mcp --help` for the full upstream flag list.
-
-## Extra MCP tools (proxy mode, on by default)
-
-The wrapper fronts `@playwright/mcp` with a small proxy that adds four
-convenience tools. Disable with `--no-proxy` / `PW_MCP_NO_PROXY=1`.
-
-### `get_page_text`
-
-Return `document.body.innerText`, truncated. Skips the accessibility tree —
-**cheap**: ~1s and a few KB even on heavy DOMs, vs `browser_snapshot` which can
-be 2–10s and multi-MB. Use when you only need text on the page, not refs.
-
-Arguments:
-- `maxChars` (number, optional) — character cap. Default 200000.
-
-```json
-{ "name": "get_page_text", "arguments": { "maxChars": 5000 } }
-```
-
-### `find`
-
-Locate elements whose visible text contains `query` (case-insensitive).
-Optional `role` ARIA filter. Leaf-prefer: elements that contain another match
-are dropped, so you get the most specific node, not its ancestors. Returns up
-to 10 hits with tag, role, aria-label, text, and a CSS selector.
-
-Arguments:
-- `query` (string, required) — substring to match.
-- `role` (string, optional) — ARIA role to require.
-
-```json
-{ "name": "find", "arguments": { "query": "Sign in", "role": "button" } }
-```
-
-Avoids the snapshot round-trip you'd normally need just to discover a ref.
-
-### `browser_console_messages` (augmented)
-
-Same as upstream, with two server-side filters added:
-- `pattern` (string) — regex; only matching lines are returned.
-- `onlyErrors` (boolean) — drop non-error/warn lines.
-
-```json
-{ "name": "browser_console_messages", "arguments": { "onlyErrors": true } }
-```
-
-### `browser_network_requests` (augmented)
-
-Same as upstream, with one server-side filter added:
-- `urlPattern` (string) — regex matched against the request URL line.
-
-```json
-{ "name": "browser_network_requests", "arguments": { "urlPattern": "/api/" } }
-```
-
-## Performance notes
-
-The wrapper also patches `playwright-core` so `--snapshot-mode none` truly
-skips the per-response accessibility-tree walk (upstream computes it even when
-omitted from the response). On heavy DOMs this drops non-snapshot tool latency
-from a ~2 s floor to single-digit ms. The patch is applied automatically via
-`patch-package` on `npm install`.
-
-### Examples
-
-```sh
-# Print wrapper + upstream help
-playwright-browser-mcp --help
-
-# Print versions and exit
-playwright-browser-mcp --version
-
-# Use a specific port
-playwright-browser-mcp --port 9333
-
-# Custom output directory
-playwright-browser-mcp --output-dir ./screenshots
-
-# Connect to an existing Chrome instance
-playwright-browser-mcp --cdp-endpoint http://localhost:9222
-
-# Disable the proxy (vanilla @playwright/mcp behavior)
-playwright-browser-mcp --no-proxy
-```
-
-## How it works
-
-- On first run, the wrapper finds an available port starting from 9222 and saves it to `.playwright-mcp/port.txt` for reuse across runs.
-- Chrome is started via `simple-browser` (fetched automatically via npx).
-- The `@playwright/mcp` server is then launched with `--cdp-endpoint` pointing at the running Chrome instance.
-
-### Port persistence
-
-The chosen port is persisted to `.playwright-mcp/port.txt`. Delete this file to force re-detection:
-
-```sh
-rm .playwright-mcp/port.txt
-```
+- Node.js and npm
+- `lsof` (standard on macOS/Linux)
 
 ## License
 

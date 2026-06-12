@@ -1,20 +1,12 @@
 {
   "name": "playwright-browser-mcp",
-  "version": "1.5.0",
+  "version": "2.0.0",
   "files": [
-    "./main.sh",
-    "./src",
-    "./patches"
+    "./main.sh"
   ],
   "bin": {
-    "playwright-browser-mcp": "main.sh"
-  },
-  "scripts": {
-    "postinstall": "patch-package || true",
-    "test": "node --test 'tests/**/*.test.mjs'"
-  },
-  "dependencies": {
-    "@playwright/mcp": "^0.0.75",
-    "patch-package": "^8.0.1"
+    "browser-mcp": "main.sh",
+    "playwright-browser-mcp": "main.sh",
+    "playwright-mcp": "main.sh"
   }
 }

@@ -2,42 +2,51 @@
 
 ## Project Overview
 
-This repo is a lightweight wrapper around `@playwright/mcp` that exposes Playwright browser capabilities via an MCP server. The wrapper (`main.sh`) automatically starts a Chrome instance via `simple-browser`, manages Chrome DevTools Protocol (CDP) port allocation, and launches the `@playwright/mcp` server connected to that browser.
+This repo is a tiny wrapper (`main.sh`) that connects a browser-automation MCP server to a shared, already-running browser instance. It loads its config (MCP server, CDP port, browser) from `.playwright-mcp/config.yml`, starts the browser via `simple-browser` if nothing is listening on the port, and then runs the chosen MCP server (`@playwright/mcp` or `chrome-devtools-mcp`) connected to that browser — the MCP server never launches its own browser.
 
 ## Project Structure & Module Organization
 
-- `main.sh` — entrypoint; starts `simple-browser` for Chrome, then launches `@playwright/mcp` with CDP connection.
-- `package.json` — defines the CLI name (`playwright-browser-mcp`) and `@playwright/mcp` dependency; `package-lock.json` pins versions.
-- `.playwright-mcp/` — runtime config directory (auto-created); stores `port.txt` (persisted CDP port) and `output/` (default screenshot/artifact dir).
-- `node_modules/` — vendor output (do not edit by hand).
+- `main.sh` — the entire logic; ~150 lines of Bash.
+- `package.json` — defines the CLI name (`playwright-browser-mcp`) and bin entry; no dependencies (everything runs via `npx`).
+- `.playwright-mcp/` — runtime config directory (auto-created); stores `config.yml` (persisted MCP server, port, browser — with inline docs) and `output/` (screenshot/artifact dir for `@playwright/mcp`).
 
 ## Build, Test, and Development Commands
 
-- `npm install` — installs dependencies.
 - `npm pack` — produces a tarball to verify package contents.
-- `./main.sh [args]` — runs the MCP server wrapper directly.
-- `npx --yes playwright-browser-mcp@latest -- [args]` — runs the installed CLI.
+- `./main.sh [flags]` — runs the wrapper directly.
+- `npx --yes playwright-browser-mcp@latest [flags]` — runs the installed CLI.
 
-### CLI Flags
+### CLI
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--port <N>` | Auto-detected from 9222 | Chrome CDP debugging port; persisted to `.playwright-mcp/port.txt` |
-| `--output-dir <path>` | `.playwright-mcp/output` | Directory for screenshots/artifacts |
-| `--cdp-endpoint <url>` | `http://localhost:<port>` | CDP endpoint URL (overrides port-based default) |
+| Flag | Description |
+|------|-------------|
+| `--mcp <name>` | MCP server: `playwright` or `chrome-devtools`. |
+| `--port <N>` | Browser CDP debugging port. |
+| `--browser <name>` | Browser started by `simple-browser`: `chrome` or `electron`. |
+| `-h`, `--help` | Show wrapper help and exit. |
 
-All other arguments are passed through to `@playwright/mcp`.
+Unknown arguments are rejected with an error (nothing is passed through to the MCP server).
+
+### Persisted config (`.playwright-mcp/config.yml`)
+
+Each value resolves as **flag > `config.yml` > default**. Port only: legacy `.playwright-mcp/port.txt` is read between `config.yml` and free-port detection (first free port from 9222). After resolution, `config.yml` is rewritten (with comment docs per option) and legacy txt files (`port.txt`, `mcp.txt`, `browser.txt`) are removed.
+
+| Key | Default | Values |
+|-----|---------|--------|
+| `mcp` | `playwright` | `playwright` \| `chrome-devtools` |
+| `port` | first free port from 9222 | any TCP port |
+| `browser` | `chrome` | `chrome` \| `electron` |
 
 ### Prerequisites
 
 - Node.js and npm must be installed.
-- `lsof` must be available (used for port detection; standard on macOS/Linux).
+- `lsof` must be available (used to check whether Chrome is already listening; standard on macOS/Linux).
 
 ## Coding Style & Naming Conventions
 
 - Shell scripts use Bash with strict mode (`errexit`, `pipefail`, `nounset`).
-- Prefer small, readable functions if the script grows; keep comments brief and purposeful.
-- Indentation: 2 spaces in shell continuations to match `main.sh`.
+- Keep `main.sh` minimal; comments brief and purposeful.
+- Indentation: 2 spaces.
 - Naming: lowercase filenames with hyphens (e.g., `main.sh`); CLI name matches package name.
 
 ## Testing Guidelines
@@ -47,17 +56,20 @@ All other arguments are passed through to `@playwright/mcp`.
 
 ## Commit & Pull Request Guidelines
 
-- Use concise, imperative subjects (e.g., “feat: auto-manage Chrome debugging port”); include scope if helpful.
+- Use concise, imperative subjects (e.g., “feat: add chrome-devtools MCP option”); include scope if helpful.
 - PRs should include a short description of the change, how to run it locally, and any risks.
 
 ## Gotchas
 
-- **Port persistence**: Once a port is chosen, it's saved to `.playwright-mcp/port.txt` and reused across runs. Delete this file to force re-detection.
-- **`simple-browser` is fetched via `npx --yes simple-browser@latest`**: It's not in `package.json`; it's downloaded on first run and cached by npm.
-- **Stdout suppression**: `simple-browser` startup and port parsing output are suppressed (`>/dev/null`). If Chrome fails to start, check stderr or run `simple-browser` manually to debug.
+- **Config persistence**: port, MCP server, and browser resolve as flag > `config.yml` > default, and resolved values are always written back to `config.yml`. Passing a flag therefore changes future no-flag runs too. Delete the file to restore defaults; edit it to pin values.
+- **YAML parsing is naive**: `read_yml` only handles top-level `key: value` lines (trailing `#` comments stripped). No nesting, no quoting — keep `config.yml` flat.
+- **`config.yml` is rewritten every run**: manual edits to values survive (they're read first), but custom comments/formatting are replaced by the canonical template.
+- **Everything is fetched via `npx --yes <pkg>@latest`** (`simple-browser`, `@playwright/mcp`, `chrome-devtools-mcp`): nothing is in `package.json` dependencies; packages are downloaded on first run and cached by npm.
+- **Stdout suppression**: `simple-browser` startup output is suppressed (`>/dev/null 2>&1`). If Chrome fails to start, run `npx simple-browser@latest start --browser chrome --port 9222` manually to debug.
+- **`--output-dir` only applies to `@playwright/mcp`**: `chrome-devtools-mcp` has no equivalent flag.
+- **Token/perf defaults are baked into the playwright exec call** (see comments in `main.sh`): `--snapshot-mode none --image-responses omit --output-mode file`. chrome-devtools runs with upstream defaults. Revisit when upstream defaults change.
+- **Adding a new MCP server**: add the name to the `--mcp` validation `case` and a branch to the exec `case` in `main.sh`, using the server's "connect to running browser" flag.
 
 ## Security & Configuration Tips
 
-- `@playwright/mcp` uses `latest` in `package.json`; consider pinning a specific version for reproducibility.
-- `simple-browser` is fetched via `npx --yes simple-browser@latest` at runtime — pin a version in the `npx` call if needed.
-- Pass configuration through CLI args (e.g., `./main.sh --help` to inspect options).
+- All packages use `@latest` in the `npx` calls — pin versions there if reproducibility is needed.
