@@ -24,6 +24,7 @@ Flags:
   --mcp <name>       MCP server to run: playwright or chrome-devtools.
   --port <N>         Browser CDP debugging port.
   --browser <name>   Browser started by simple-browser: chrome or electron.
+  --launch <bool>    Start the browser if the port is free: true or false.
   -h, --help         Show this help and exit.
 
 Config resolution (per value): flag > .playwright-mcp/config.yml > default
@@ -31,7 +32,9 @@ Config resolution (per value): flag > .playwright-mcp/config.yml > default
 first free port from 9222). Resolved values are written back to config.yml
 after every run.
 
-Defaults: mcp=playwright, browser=chrome, port=first free port from 9222.
+Defaults: mcp=playwright, browser=chrome, port=first free port from 9222,
+launch=true. With launch=false the browser is never started; connect it to the
+port yourself or the MCP server has nothing to attach to.
 
 On startup a "marker" tab is opened in the shared browser
 (/tmp/playwright-browser-mcp/<browser>-<port>/index.html) showing the working
@@ -51,6 +54,7 @@ read_yml() {
 MCP=""
 PORT=""
 BROWSER=""
+LAUNCH=""
 while [[ $# -gt 0 ]]; do
   case $1 in
     -h|--help)
@@ -67,6 +71,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --browser)
       BROWSER="$2"
+      shift 2
+      ;;
+    --launch)
+      LAUNCH="$2"
       shift 2
       ;;
     *)
@@ -96,6 +104,19 @@ if [ -z "$BROWSER" ]; then
   BROWSER="$(read_yml browser)"
 fi
 BROWSER="${BROWSER:-chrome}"
+
+# Launch browser when the port is free: flag > config.yml > true.
+if [ -z "$LAUNCH" ]; then
+  LAUNCH="$(read_yml launch)"
+fi
+LAUNCH="${LAUNCH:-true}"
+case "$LAUNCH" in
+  true|false) ;;
+  *)
+    echo "playwright-browser-mcp: unknown launch value '$LAUNCH' (expected true or false)" >&2
+    exit 1
+    ;;
+esac
 
 # Port: flag > config.yml > legacy port.txt > first free port from 9222.
 if [ -z "$PORT" ]; then
@@ -128,12 +149,22 @@ port: ${PORT}
 # Browser started by simple-browser when nothing is listening on the port.
 # Values: chrome | electron (default: chrome)
 browser: ${BROWSER}
+
+# Start the browser via simple-browser when nothing is listening on the port.
+# Set false to attach only to a browser you start yourself.
+# Values: true | false (default: true)
+launch: ${LAUNCH}
 EOF
 rm -f "$LEGACY_PORT_FILE" "${CONFIG_DIR}/mcp.txt" "${CONFIG_DIR}/browser.txt"
 
-# Start the browser via simple-browser only if nothing is listening on the port.
+# Start the browser via simple-browser only if nothing is listening on the port
+# and launch is enabled.
 if ! lsof -Pi ":$PORT" -sTCP:LISTEN -t >/dev/null 2>&1; then
-  npx --yes simple-browser@latest start --browser "$BROWSER" --port "$PORT" >/dev/null 2>&1
+  if [ "$LAUNCH" = true ]; then
+    npx --yes simple-browser@latest start --browser "$BROWSER" --port "$PORT" >/dev/null 2>&1
+  else
+    echo "playwright-browser-mcp: nothing listening on port ${PORT} and launch=false; not starting a browser" >&2
+  fi
 fi
 
 # Marker tab: a folder-identity page so a human can tell which repo owns this
