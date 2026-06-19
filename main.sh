@@ -292,7 +292,7 @@ setup_marker() {
     <pre class="yaml" id="yaml">${e_cfg_content}</pre>
     <div class="field">
       <div class="field-top">
-        <p class="field-label">folder</p>
+        <p class="field-label">MCP Folder</p>
         <span class="actions">
           <a class="btn" href="${open_folder}" title="Open folder in your editor">Open</a>
           <button class="copy" data-copy="folder">copy</button>
@@ -302,9 +302,9 @@ setup_marker() {
     </div>
     <div class="field">
       <div class="field-top">
-        <p class="field-label">profile dir</p>
+        <p class="field-label">Browser Profile Folder</p>
         <span class="actions">
-          <a class="btn" href="${open_profile}" title="Open profile dir in your editor">Open</a>
+          <a class="btn" href="${open_profile}" title="Open browser profile folder in your editor">Open</a>
           <button class="copy" data-copy="profile">copy</button>
         </span>
       </div>
