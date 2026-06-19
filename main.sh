@@ -34,7 +34,7 @@ after every run.
 Defaults: mcp=playwright, browser=chrome, port=first free port from 9222.
 
 On startup a "marker" tab is opened in the shared browser
-(/tmp/playwright-browser-mcp/<browser>-<port>/marker.html) showing the working
+(/tmp/playwright-browser-mcp/<browser>-<port>/index.html) showing the working
 folder, port, profile, and MCP server, so you can tell which repo owns the
 browser. Best-effort; one marker tab per browser instance (deduped).
 EOF
@@ -144,7 +144,7 @@ setup_marker() {
   # Marker lives in a per browser+port dir under /tmp (instance-specific, not
   # tied to the launching repo).
   local marker_dir="/tmp/playwright-browser-mcp/${BROWSER}-${PORT}"
-  local marker_html="${marker_dir}/marker.html"
+  local marker_html="${marker_dir}/index.html"
   local marker_abs="${marker_html}"
   local profile_dir="${HOME}/Library/Application Support/simple-browser/chrome-${PORT}"
   mkdir -p "$marker_dir"
@@ -267,7 +267,6 @@ setup_marker() {
   .btn:hover,.copy:hover{color:var(--ink);border-color:var(--faint);background:var(--panel-2);}
   .btn:focus-visible,.copy:focus-visible{outline:2px solid var(--mint);outline-offset:2px;}
   .copy.ok{color:var(--mint);border-color:color-mix(in oklch, var(--mint), transparent 50%);}
-  footer{margin-top:1.5rem;text-align:center;font-family:var(--mono);font-size:.72rem;color:var(--faint);}
   @media (prefers-reduced-motion:reduce){
     .aura{animation:none}.status i{animation:none}.btn,.copy{transition:none}
   }
@@ -316,8 +315,6 @@ setup_marker() {
       <code class="path" id="profile">${e_profile}</code>
     </div>
   </section>
-
-  <footer>playwright-browser-mcp</footer>
 </main>
 <script>
 for (const b of document.querySelectorAll(".copy")) {
