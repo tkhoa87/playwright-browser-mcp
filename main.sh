@@ -33,9 +33,10 @@ after every run.
 
 Defaults: mcp=playwright, browser=chrome, port=first free port from 9222.
 
-On startup a "marker" tab (.playwright-mcp/marker.html) is opened in the shared
-browser showing the folder, port, profile, and MCP server, so you can tell which
-repo owns the browser. Best-effort; one marker tab per browser (deduped).
+On startup a "marker" tab is opened in the shared browser
+(/tmp/playwright-browser-mcp/<browser>-<port>/marker.html) showing the working
+folder, port, profile, and MCP server, so you can tell which repo owns the
+browser. Best-effort; one marker tab per browser instance (deduped).
 EOF
 }
 
@@ -140,9 +141,13 @@ fi
 # (stdout is the MCP stdio channel) and the wrapper still execs the MCP server.
 setup_marker() {
   local cdp="http://localhost:${PORT}"
-  local marker_html="${CONFIG_DIR}/marker.html"
-  local marker_abs="${PWD}/.playwright-mcp/marker.html"
+  # Marker lives in a per browser+port dir under /tmp (instance-specific, not
+  # tied to the launching repo).
+  local marker_dir="/tmp/playwright-browser-mcp/${BROWSER}-${PORT}"
+  local marker_html="${marker_dir}/marker.html"
+  local marker_abs="${marker_html}"
   local profile_dir="${HOME}/Library/Application Support/simple-browser/chrome-${PORT}"
+  mkdir -p "$marker_dir"
 
   if ! command -v curl >/dev/null 2>&1; then
     echo "playwright-browser-mcp: curl not found; skipping marker tab" >&2
@@ -346,11 +351,11 @@ if (yamlEl) {
 </html>
 EOF
 
-  # Dedupe: the ".playwright-mcp/marker.html" suffix is space-free and unique
-  # within one browser (one CDP endpoint == one repo == one port).
+  # Dedupe: the marker path is per browser+port (one CDP endpoint == one browser
+  # instance) and space-free, so a literal match on the full path is unique.
   local tabs
   tabs="$(curl -fs --max-time 2 "${cdp}/json/list" 2>/dev/null || true)"
-  if printf '%s' "$tabs" | grep -qF "/.playwright-mcp/marker.html"; then
+  if printf '%s' "$tabs" | grep -qF "$marker_abs"; then
     return 0
   fi
 
