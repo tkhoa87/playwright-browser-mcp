@@ -165,17 +165,19 @@ setup_marker() {
   fi
 
   # (Over)write the launch/marker page so its values track the current
-  # resolution. Interpolated values are HTML-escaped first.
+  # resolution. Interpolated values are HTML-escaped first. The mcp/port/browser
+  # values are shown once via the embedded config.yml content (no duplication).
   local config_abs="${PWD}/.playwright-mcp/config.yml"
   local folder_name="${PWD##*/}"
-  local e_pwd e_name e_port e_profile e_mcp e_browser e_cfg
+  local cfg_content vscode_url
+  local e_pwd e_name e_profile e_cfg_content
   e_pwd="$(html_escape "$PWD")"
   e_name="$(html_escape "$folder_name")"
-  e_port="$(html_escape "$PORT")"
   e_profile="$(html_escape "$profile_dir")"
-  e_mcp="$(html_escape "$MCP")"
-  e_browser="$(html_escape "$BROWSER")"
-  e_cfg="$(html_escape "$config_abs")"
+  cfg_content="$(cat "$CONFIG_YML" 2>/dev/null || true)"
+  e_cfg_content="$(html_escape "$cfg_content")"
+  # vscode://file/<abs path> deep-links the OS into VS Code at the config file.
+  vscode_url="vscode://file$(urlencode "$config_abs")"
   cat > "$marker_html" <<EOF
 <!doctype html>
 <html lang="en">
@@ -213,11 +215,12 @@ setup_marker() {
     animation:drift 26s ease-in-out infinite alternate;}
   @keyframes drift{from{transform:translate3d(-2%,-1%,0) scale(1)}to{transform:translate3d(2%,2%,0) scale(1.08)}}
   main{position:relative;z-index:1;width:100%;max-width:600px}
-  .head{display:flex;align-items:flex-start;gap:.85rem;margin-bottom:1.7rem}
-  .mark{width:38px;height:38px;flex:0 0 auto;border-radius:50%;position:relative;
+  .head{display:flex;align-items:center;gap:.85rem;margin-bottom:1.7rem}
+  .mark{width:40px;height:40px;flex:0 0 auto;border-radius:50%;position:relative;
     background:conic-gradient(from 210deg, oklch(0.62 0.2 280), oklch(0.72 0.14 205), oklch(0.66 0.17 330), oklch(0.62 0.2 280));
     box-shadow:0 0 0 1px oklch(1 0 0/.12), 0 10px 32px -8px oklch(0.62 0.2 280/.5);}
   .mark::after{content:"";position:absolute;inset:7px;border-radius:50%;background:var(--bg);}
+  .head .title{display:flex;flex-direction:column;justify-content:center;}
   .head h1{font-size:1.06rem;font-weight:650;letter-spacing:-.01em;margin:0;}
   .head .tag{margin:.12rem 0 0;font-size:.8rem;color:var(--muted);}
   .status{margin-left:auto;display:inline-flex;align-items:center;gap:.42rem;
@@ -231,51 +234,37 @@ setup_marker() {
   .bind-label{font-size:.78rem;color:var(--muted);margin:0 0 .45rem;}
   .bind-name{font-size:clamp(1.5rem,4.5vw,2.05rem);font-weight:650;letter-spacing:-.02em;
     margin:0;text-wrap:balance;}
-  .bind-path{display:flex;align-items:center;gap:.55rem;margin:.5rem 0 0;
-    font-family:var(--mono);font-size:.77rem;color:var(--muted);}
-  .bind-path span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .bind-meta{display:flex;gap:.45rem;margin-top:1rem;flex-wrap:wrap;}
-  .pill{font-family:var(--mono);font-size:.74rem;color:var(--ink);background:var(--panel-2);
-    border:1px solid var(--line);border-radius:999px;padding:.2rem .65rem;}
+  .pathline{display:flex;align-items:flex-start;gap:.55rem;margin:.5rem 0 0;}
+  .pathline code{font-family:var(--mono);font-size:.77rem;color:var(--muted);
+    overflow-wrap:anywhere;word-break:break-word;flex:1 1 auto;min-width:0;line-height:1.55;}
   .card{position:relative;background:var(--panel);border:1px solid var(--line);
     border-radius:14px;padding:1.1rem 1.25rem;margin-top:1rem;
     box-shadow:0 1px 0 oklch(1 0 0/.04) inset, 0 24px 48px -34px oklch(0 0 0/.85);}
-  .card-h{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;margin-bottom:.7rem;}
-  .card h2{font-size:.82rem;font-weight:600;margin:0;color:var(--ink);}
-  .card .src{font-family:var(--mono);font-size:.72rem;color:var(--faint);}
-  .cfg{margin:0;display:flex;flex-direction:column;}
-  .cfg>div{display:grid;grid-template-columns:5rem 1fr auto;align-items:baseline;gap:1rem;
-    padding:.55rem 0;border-top:1px solid var(--line);}
-  .cfg>div:first-child{border-top:0;padding-top:.1rem;}
-  .cfg dt{font-family:var(--mono);font-size:.8rem;color:var(--muted);margin:0;}
-  .cfg dd{margin:0;font-family:var(--mono);font-size:.92rem;color:var(--ink);}
-  .cfg dd.opt{font-family:var(--sans);font-size:.76rem;color:var(--faint);text-align:right;}
-  .profile{display:flex;align-items:center;gap:.6rem;margin-top:.85rem;padding-top:.85rem;
-    border-top:1px solid var(--line);}
-  .profile>span{font-family:var(--mono);font-size:.78rem;color:var(--muted);flex:0 0 auto;}
-  .profile code{font-family:var(--mono);font-size:.76rem;color:var(--muted);
-    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 0;min-width:0;}
-  .how{font-size:.8rem;color:var(--muted);margin:.05rem 0 .85rem;max-width:62ch;}
-  .ways{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.7rem;}
-  .ways li{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;font-size:.82rem;}
-  .ways b{font-weight:600;color:var(--ink);flex:0 0 7rem;}
-  .ways code{font-family:var(--mono);font-size:.77rem;color:var(--muted);background:var(--panel-2);
-    border:1px solid var(--line);border-radius:7px;padding:.22rem .55rem;
-    flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .copy{font-family:var(--sans);font-size:.72rem;color:var(--muted);background:transparent;
-    border:1px solid var(--line);border-radius:6px;padding:.16rem .5rem;cursor:pointer;flex:0 0 auto;
+  .bar{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.75rem;}
+  .bar h2{font-size:.82rem;font-weight:600;margin:0;color:var(--ink);}
+  .bar .src{font-family:var(--mono);font-size:.72rem;color:var(--faint);}
+  .bar .actions{margin-left:auto;display:flex;gap:.45rem;}
+  pre.yaml{margin:0;font-family:var(--mono);font-size:.78rem;line-height:1.65;color:var(--ink);
+    background:var(--panel-2);border:1px solid var(--line);border-radius:9px;
+    padding:.85rem .95rem;white-space:pre-wrap;overflow-wrap:anywhere;}
+  .field{margin-top:.95rem;padding-top:.9rem;border-top:1px solid var(--line);}
+  .field-label{font-family:var(--mono);font-size:.74rem;color:var(--muted);margin:0 0 .3rem;}
+  .field .pathline{margin:0;}
+  .note{font-size:.8rem;color:var(--muted);margin:.9rem 0 0;max-width:64ch;}
+  .note code{font-family:var(--mono);font-size:.92em;color:var(--ink);background:var(--panel-2);
+    border:1px solid var(--line);border-radius:5px;padding:.05rem .3rem;white-space:nowrap;}
+  .btn,.copy{font-family:var(--sans);font-size:.72rem;cursor:pointer;flex:0 0 auto;
+    border:1px solid var(--line);border-radius:6px;padding:.2rem .55rem;text-decoration:none;
+    display:inline-flex;align-items:center;gap:.35rem;
     transition:color .15s ease,border-color .15s ease,background .15s ease;}
-  .copy:hover{color:var(--ink);border-color:var(--faint);background:var(--panel-2);}
-  .copy:focus-visible{outline:2px solid var(--mint);outline-offset:2px;}
+  .copy{color:var(--muted);background:transparent;}
+  .btn{color:var(--ink);background:var(--panel-2);}
+  .btn:hover,.copy:hover{color:var(--ink);border-color:var(--faint);background:var(--panel-2);}
+  .btn:focus-visible,.copy:focus-visible{outline:2px solid var(--mint);outline-offset:2px;}
   .copy.ok{color:var(--mint);border-color:color-mix(in oklch, var(--mint), transparent 50%);}
   footer{margin-top:1.5rem;text-align:center;font-family:var(--mono);font-size:.72rem;color:var(--faint);}
-  @media (max-width:520px){
-    .cfg>div{grid-template-columns:4.5rem 1fr;gap:.25rem 1rem;}
-    .cfg dd.opt{grid-column:2;text-align:left;}
-    .ways b{flex-basis:100%;}
-  }
   @media (prefers-reduced-motion:reduce){
-    .aura{animation:none}.status i{animation:none}.copy{transition:none}
+    .aura{animation:none}.status i{animation:none}.btn,.copy{transition:none}
   }
 </style>
 </head>
@@ -284,7 +273,7 @@ setup_marker() {
 <main>
   <header class="head">
     <span class="mark" aria-hidden="true"></span>
-    <div>
+    <div class="title">
       <h1>Playwright&nbsp;Browser&nbsp;MCP</h1>
       <p class="tag">One shared browser, wired to your MCP session.</p>
     </div>
@@ -294,31 +283,24 @@ setup_marker() {
   <section class="bind">
     <p class="bind-label">This browser is bound to</p>
     <p class="bind-name">${e_name}</p>
-    <p class="bind-path"><span id="folder">${e_pwd}</span><button class="copy" data-copy="folder">copy</button></p>
-    <div class="bind-meta">
-      <span class="pill">port ${e_port}</span>
-      <span class="pill">${e_mcp}</span>
-      <span class="pill">${e_browser}</span>
+    <p class="pathline"><code id="folder">${e_pwd}</code><button class="copy" data-copy="folder">copy</button></p>
+  </section>
+
+  <section class="card">
+    <div class="bar">
+      <h2>Configuration</h2>
+      <span class="src">.playwright-mcp/config.yml</span>
+      <span class="actions">
+        <a class="btn" href="${vscode_url}">Open in VS&nbsp;Code</a>
+        <button class="copy" data-copy="yaml">copy</button>
+      </span>
     </div>
-  </section>
-
-  <section class="card">
-    <div class="card-h"><h2>Configuration</h2><span class="src">.playwright-mcp/config.yml</span></div>
-    <dl class="cfg">
-      <div><dt>mcp</dt><dd>${e_mcp}</dd><dd class="opt">playwright &middot; chrome-devtools</dd></div>
-      <div><dt>port</dt><dd>${e_port}</dd><dd class="opt">CDP debug port</dd></div>
-      <div><dt>browser</dt><dd>${e_browser}</dd><dd class="opt">chrome &middot; electron</dd></div>
-    </dl>
-    <div class="profile"><span>profile</span><code id="profile">${e_profile}</code><button class="copy" data-copy="profile">copy</button></div>
-  </section>
-
-  <section class="card">
-    <div class="card-h"><h2>Change these</h2></div>
-    <p class="how">Edits apply on the next launch &mdash; resolution order is flag &rarr; config.yml &rarr; default.</p>
-    <ol class="ways">
-      <li><b>Edit the file</b><code id="cfgpath">${e_cfg}</code><button class="copy" data-copy="cfgpath">copy</button></li>
-      <li><b>Or pass a flag</b><code>--mcp&nbsp;&nbsp;--port&nbsp;&nbsp;--browser</code></li>
-    </ol>
+    <pre class="yaml" id="yaml">${e_cfg_content}</pre>
+    <div class="field">
+      <p class="field-label">profile dir</p>
+      <p class="pathline"><code id="profile">${e_profile}</code><button class="copy" data-copy="profile">copy</button></p>
+    </div>
+    <p class="note">Edits apply on the next launch &mdash; resolution order is flag &rarr; config.yml &rarr; default. Or pass <code>--mcp</code> <code>--port</code> <code>--browser</code>.</p>
   </section>
 
   <footer>playwright-browser-mcp</footer>
