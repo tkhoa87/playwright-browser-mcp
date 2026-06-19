@@ -169,15 +169,18 @@ setup_marker() {
   # values are shown once via the embedded config.yml content (no duplication).
   local config_abs="${PWD}/.playwright-mcp/config.yml"
   local folder_name="${PWD##*/}"
-  local cfg_content vscode_url
+  local cfg_content open_cfg open_folder open_profile
   local e_pwd e_name e_profile e_cfg_content
   e_pwd="$(html_escape "$PWD")"
   e_name="$(html_escape "$folder_name")"
   e_profile="$(html_escape "$profile_dir")"
   cfg_content="$(cat "$CONFIG_YML" 2>/dev/null || true)"
   e_cfg_content="$(html_escape "$cfg_content")"
-  # vscode://file/<abs path> deep-links the OS into VS Code at the config file.
-  vscode_url="vscode://file$(urlencode "$config_abs")"
+  # vscode://file/<abs path> hands the path to the editor registered for the
+  # scheme (VS Code and forks). Used for the "Open" buttons on each path.
+  open_cfg="vscode://file$(urlencode "$config_abs")"
+  open_folder="vscode://file$(urlencode "$PWD")"
+  open_profile="vscode://file$(urlencode "$profile_dir")"
   cat > "$marker_html" <<EOF
 <!doctype html>
 <html lang="en">
@@ -230,15 +233,8 @@ setup_marker() {
   .status i{width:7px;height:7px;border-radius:50%;background:var(--mint);
     animation:pulse 2.6s ease-out infinite;}
   @keyframes pulse{0%{box-shadow:0 0 0 0 oklch(0.82 0.15 165/.55)}70%,100%{box-shadow:0 0 0 7px oklch(0.82 0.15 165/0)}}
-  .bind{padding:.25rem 0 .5rem;}
-  .bind-label{font-size:.78rem;color:var(--muted);margin:0 0 .45rem;}
-  .bind-name{font-size:clamp(1.5rem,4.5vw,2.05rem);font-weight:650;letter-spacing:-.02em;
-    margin:0;text-wrap:balance;}
-  .pathline{display:flex;align-items:flex-start;gap:.55rem;margin:.5rem 0 0;}
-  .pathline code{font-family:var(--mono);font-size:.77rem;color:var(--muted);
-    overflow-wrap:anywhere;word-break:break-word;flex:1 1 auto;min-width:0;line-height:1.55;}
   .card{position:relative;background:var(--panel);border:1px solid var(--line);
-    border-radius:14px;padding:1.1rem 1.25rem;margin-top:1rem;
+    border-radius:14px;padding:1.1rem 1.25rem;
     box-shadow:0 1px 0 oklch(1 0 0/.04) inset, 0 24px 48px -34px oklch(0 0 0/.85);}
   .bar{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.75rem;}
   .bar h2{font-size:.82rem;font-weight:600;margin:0;color:var(--ink);}
@@ -247,12 +243,16 @@ setup_marker() {
   pre.yaml{margin:0;font-family:var(--mono);font-size:.78rem;line-height:1.65;color:var(--ink);
     background:var(--panel-2);border:1px solid var(--line);border-radius:9px;
     padding:.85rem .95rem;white-space:pre-wrap;overflow-wrap:anywhere;}
+  pre.yaml .cmt{color:var(--faint);font-style:italic;}
+  pre.yaml .key{color:oklch(0.8 0.09 232);}
+  pre.yaml .val{color:oklch(0.85 0.1 150);}
+  pre.yaml .num{color:oklch(0.82 0.12 56);}
   .field{margin-top:.95rem;padding-top:.9rem;border-top:1px solid var(--line);}
-  .field-label{font-family:var(--mono);font-size:.74rem;color:var(--muted);margin:0 0 .3rem;}
-  .field .pathline{margin:0;}
-  .note{font-size:.8rem;color:var(--muted);margin:.9rem 0 0;max-width:64ch;}
-  .note code{font-family:var(--mono);font-size:.92em;color:var(--ink);background:var(--panel-2);
-    border:1px solid var(--line);border-radius:5px;padding:.05rem .3rem;white-space:nowrap;}
+  .field-top{display:flex;align-items:center;gap:.6rem;margin-bottom:.32rem;}
+  .field-label{font-family:var(--mono);font-size:.74rem;color:var(--muted);margin:0;}
+  .field-top .actions{margin-left:auto;display:flex;gap:.45rem;}
+  .path{display:block;font-family:var(--mono);font-size:.77rem;color:var(--muted);
+    overflow-wrap:anywhere;word-break:break-word;line-height:1.55;margin:0;}
   .btn,.copy{font-family:var(--sans);font-size:.72rem;cursor:pointer;flex:0 0 auto;
     border:1px solid var(--line);border-radius:6px;padding:.2rem .55rem;text-decoration:none;
     display:inline-flex;align-items:center;gap:.35rem;
@@ -280,27 +280,36 @@ setup_marker() {
     <span class="status"><i></i>connected</span>
   </header>
 
-  <section class="bind">
-    <p class="bind-label">This browser is bound to</p>
-    <p class="bind-name">${e_name}</p>
-    <p class="pathline"><code id="folder">${e_pwd}</code><button class="copy" data-copy="folder">copy</button></p>
-  </section>
-
   <section class="card">
     <div class="bar">
       <h2>Configuration</h2>
       <span class="src">.playwright-mcp/config.yml</span>
       <span class="actions">
-        <a class="btn" href="${vscode_url}">Open in VS&nbsp;Code</a>
+        <a class="btn" href="${open_cfg}" title="Open config.yml in your editor">Open</a>
         <button class="copy" data-copy="yaml">copy</button>
       </span>
     </div>
     <pre class="yaml" id="yaml">${e_cfg_content}</pre>
     <div class="field">
-      <p class="field-label">profile dir</p>
-      <p class="pathline"><code id="profile">${e_profile}</code><button class="copy" data-copy="profile">copy</button></p>
+      <div class="field-top">
+        <p class="field-label">folder</p>
+        <span class="actions">
+          <a class="btn" href="${open_folder}" title="Open folder in your editor">Open</a>
+          <button class="copy" data-copy="folder">copy</button>
+        </span>
+      </div>
+      <code class="path" id="folder">${e_pwd}</code>
     </div>
-    <p class="note">Edits apply on the next launch &mdash; resolution order is flag &rarr; config.yml &rarr; default. Or pass <code>--mcp</code> <code>--port</code> <code>--browser</code>.</p>
+    <div class="field">
+      <div class="field-top">
+        <p class="field-label">profile dir</p>
+        <span class="actions">
+          <a class="btn" href="${open_profile}" title="Open profile dir in your editor">Open</a>
+          <button class="copy" data-copy="profile">copy</button>
+        </span>
+      </div>
+      <code class="path" id="profile">${e_profile}</code>
+    </div>
   </section>
 
   <footer>playwright-browser-mcp</footer>
@@ -318,6 +327,19 @@ for (const b of document.querySelectorAll(".copy")) {
       setTimeout(() => { b.textContent = prev; b.classList.remove("ok"); }, 1200);
     } catch (e) {}
   });
+}
+// Light syntax highlight for the flat config.yml (comments / keys / values).
+const yamlEl = document.getElementById("yaml");
+if (yamlEl) {
+  const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  yamlEl.innerHTML = yamlEl.textContent.split("\n").map((line) => {
+    if (/^\s*#/.test(line)) return '<span class="cmt">' + esc(line) + "</span>";
+    const m = line.match(/^(\s*)([\w.-]+)(:\s*)(.*)$/);
+    if (!m) return esc(line);
+    const cls = /^-?\d+$/.test(m[4].trim()) ? "num" : "val";
+    const val = m[4] ? '<span class="' + cls + '">' + esc(m[4]) + "</span>" : "";
+    return esc(m[1]) + '<span class="key">' + esc(m[2]) + "</span>" + esc(m[3]) + val;
+  }).join("\n");
 }
 </script>
 </body>
