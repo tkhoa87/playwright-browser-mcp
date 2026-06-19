@@ -205,18 +205,20 @@ setup_marker() {
   # values are shown once via the embedded config.yml content (no duplication).
   local config_abs="${PWD}/.playwright-mcp/config.yml"
   local folder_name="${PWD##*/}"
-  local cfg_content open_cfg open_folder open_profile
+  local cfg_content enc_cfg enc_folder enc_profile
   local e_pwd e_name e_profile e_cfg_content
   e_pwd="$(html_escape "$PWD")"
   e_name="$(html_escape "$folder_name")"
   e_profile="$(html_escape "$profile_dir")"
   cfg_content="$(cat "$CONFIG_YML" 2>/dev/null || true)"
   e_cfg_content="$(html_escape "$cfg_content")"
-  # vscode://file/<abs path> hands the path to the editor registered for the
-  # scheme (VS Code and forks). Used for the "Open" buttons on each path.
-  open_cfg="vscode://file$(urlencode "$config_abs")"
-  open_folder="vscode://file$(urlencode "$PWD")"
-  open_profile="vscode://file$(urlencode "$profile_dir")"
+  # URL-encoded paths. config.yml opens via <editor>://file<path> (VS Code and
+  # forks all share that shape); the dropdown offers one item per editor. Folders
+  # use a plain file:// link (the browser opens the folder listing — a sandboxed
+  # page cannot launch Finder/Explorer directly).
+  enc_cfg="$(urlencode "$config_abs")"
+  enc_folder="$(urlencode "$PWD")"
+  enc_profile="$(urlencode "$profile_dir")"
   cat > "$marker_html" <<EOF
 <!doctype html>
 <html lang="en">
@@ -298,6 +300,21 @@ setup_marker() {
   .btn:hover,.copy:hover{color:var(--ink);border-color:var(--faint);background:var(--panel-2);}
   .btn:focus-visible,.copy:focus-visible{outline:2px solid var(--mint);outline-offset:2px;}
   .copy.ok{color:var(--mint);border-color:color-mix(in oklch, var(--mint), transparent 50%);}
+  .menu{position:relative;}
+  .menu>summary{list-style:none;}
+  .menu>summary::-webkit-details-marker{display:none;}
+  .menu>summary::after{content:"";width:.4em;height:.4em;margin-left:.15rem;
+    border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;
+    transform:translateY(-1px) rotate(45deg);opacity:.8;}
+  .menu[open]>summary::after{transform:translateY(1px) rotate(-135deg);}
+  .menu-list{position:absolute;right:0;top:calc(100% + .35rem);z-index:20;min-width:9rem;
+    display:flex;flex-direction:column;padding:.3rem;gap:.1rem;
+    background:var(--panel-2);border:1px solid var(--line);border-radius:9px;
+    box-shadow:0 16px 40px -16px oklch(0 0 0/.7);}
+  .menu-list a{font-size:.78rem;color:var(--ink);text-decoration:none;border-radius:6px;
+    padding:.32rem .5rem;transition:background .12s ease;}
+  .menu-list a:hover{background:color-mix(in oklch, var(--line), transparent 35%);}
+  .menu-list a:focus-visible{outline:2px solid var(--mint);outline-offset:-2px;}
   @media (prefers-reduced-motion:reduce){
     .aura{animation:none}.status i{animation:none}.btn,.copy{transition:none}
   }
@@ -320,7 +337,17 @@ setup_marker() {
       <h2>Configuration</h2>
       <span class="src">.playwright-mcp/config.yml</span>
       <span class="actions">
-        <a class="btn" href="${open_cfg}" title="Open config.yml in your editor">Open</a>
+        <details class="menu">
+          <summary class="btn" title="Open config.yml in an editor">Open</summary>
+          <div class="menu-list">
+            <a href="vscode://file${enc_cfg}">VS Code</a>
+            <a href="cursor://file${enc_cfg}">Cursor</a>
+            <a href="windsurf://file${enc_cfg}">Windsurf</a>
+            <a href="antigravity://file${enc_cfg}">Antigravity</a>
+            <a href="vscodium://file${enc_cfg}">VSCodium</a>
+            <a href="file://${enc_cfg}">Browser</a>
+          </div>
+        </details>
         <button class="copy" data-copy="yaml">Copy</button>
       </span>
     </div>
@@ -329,7 +356,7 @@ setup_marker() {
       <div class="field-top">
         <p class="field-label">Working Folder</p>
         <span class="actions">
-          <a class="btn" href="${open_folder}" title="Open folder in your editor">Open</a>
+          <a class="btn" href="file://${enc_folder}" title="Open folder">Open</a>
           <button class="copy" data-copy="folder">Copy</button>
         </span>
       </div>
@@ -339,7 +366,7 @@ setup_marker() {
       <div class="field-top">
         <p class="field-label">Browser Profile</p>
         <span class="actions">
-          <a class="btn" href="${open_profile}" title="Open browser profile folder in your editor">Open</a>
+          <a class="btn" href="file://${enc_profile}" title="Open folder">Open</a>
           <button class="copy" data-copy="profile">Copy</button>
         </span>
       </div>
@@ -348,6 +375,17 @@ setup_marker() {
   </section>
 </main>
 <script>
+// Editor dropdown: close after picking an item, and on any outside click.
+for (const m of document.querySelectorAll(".menu")) {
+  m.addEventListener("click", (e) => {
+    if (e.target.closest(".menu-list a")) m.removeAttribute("open");
+  });
+}
+document.addEventListener("click", (e) => {
+  for (const m of document.querySelectorAll(".menu[open]")) {
+    if (!m.contains(e.target)) m.removeAttribute("open");
+  }
+});
 for (const b of document.querySelectorAll(".copy")) {
   b.addEventListener("click", async () => {
     const el = document.getElementById(b.dataset.copy);
