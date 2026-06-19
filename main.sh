@@ -315,8 +315,9 @@ setup_marker() {
     display:flex;flex-direction:column;padding:.3rem;gap:.1rem;
     background:var(--panel-2);border:1px solid var(--line);border-radius:9px;
     box-shadow:0 16px 40px -16px oklch(0 0 0/.7);}
-  .menu-list a{display:flex;align-items:center;gap:.5rem;font-size:.78rem;color:var(--ink);
-    text-decoration:none;border-radius:6px;padding:.32rem .5rem;transition:background .12s ease;}
+  .menu-list a{display:flex;align-items:center;gap:.5rem;font-size:.78rem;line-height:1;
+    color:var(--ink);text-decoration:none;border-radius:6px;padding:.36rem .5rem;
+    transition:background .12s ease;}
   .menu-list a:hover{background:color-mix(in oklch, var(--line), transparent 35%);}
   .menu-list a:focus-visible{outline:2px solid var(--mint);outline-offset:-2px;}
   .ic{width:16px;height:16px;flex:0 0 auto;border-radius:4px;display:block;object-fit:contain;}
