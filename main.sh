@@ -249,7 +249,7 @@ setup_marker() {
   pre.yaml .num{color:oklch(0.82 0.12 56);}
   .field{margin-top:.95rem;padding-top:.9rem;border-top:1px solid var(--line);}
   .field-top{display:flex;align-items:center;gap:.6rem;margin-bottom:.32rem;}
-  .field-label{font-family:var(--mono);font-size:.74rem;color:var(--muted);margin:0;}
+  .field-label{font-size:.82rem;font-weight:600;color:var(--ink);margin:0;}
   .field-top .actions{margin-left:auto;display:flex;gap:.45rem;}
   .path{display:block;font-family:var(--mono);font-size:.77rem;color:var(--muted);
     overflow-wrap:anywhere;word-break:break-word;line-height:1.55;margin:0;}
