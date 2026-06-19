@@ -286,7 +286,7 @@ setup_marker() {
       <span class="src">.playwright-mcp/config.yml</span>
       <span class="actions">
         <a class="btn" href="${open_cfg}" title="Open config.yml in your editor">Open</a>
-        <button class="copy" data-copy="yaml">copy</button>
+        <button class="copy" data-copy="yaml">Copy</button>
       </span>
     </div>
     <pre class="yaml" id="yaml">${e_cfg_content}</pre>
@@ -295,7 +295,7 @@ setup_marker() {
         <p class="field-label">MCP Folder</p>
         <span class="actions">
           <a class="btn" href="${open_folder}" title="Open folder in your editor">Open</a>
-          <button class="copy" data-copy="folder">copy</button>
+          <button class="copy" data-copy="folder">Copy</button>
         </span>
       </div>
       <code class="path" id="folder">${e_pwd}</code>
@@ -305,7 +305,7 @@ setup_marker() {
         <p class="field-label">Browser Profile Folder</p>
         <span class="actions">
           <a class="btn" href="${open_profile}" title="Open browser profile folder in your editor">Open</a>
-          <button class="copy" data-copy="profile">copy</button>
+          <button class="copy" data-copy="profile">Copy</button>
         </span>
       </div>
       <code class="path" id="profile">${e_profile}</code>
@@ -322,7 +322,7 @@ for (const b of document.querySelectorAll(".copy")) {
     try {
       await navigator.clipboard.writeText(el.textContent.trim());
       const prev = b.textContent;
-      b.textContent = "copied";
+      b.textContent = "Copied";
       b.classList.add("ok");
       setTimeout(() => { b.textContent = prev; b.classList.remove("ok"); }, 1200);
     } catch (e) {}
