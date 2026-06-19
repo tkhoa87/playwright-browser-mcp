@@ -8,6 +8,9 @@ CONFIG_DIR="./.playwright-mcp"
 CONFIG_YML="${CONFIG_DIR}/config.yml"
 LEGACY_PORT_FILE="${CONFIG_DIR}/port.txt"
 OUTPUT_DIR="${CONFIG_DIR}/output"
+# Persistent home for per-instance marker pages (one dir per browser+port).
+# Under Application Support so markers survive OS restarts (unlike /tmp).
+MARKER_BASE="${HOME}/Library/Application Support/playwright-browser-mcp"
 
 print_help() {
   cat <<EOF
@@ -36,10 +39,12 @@ Defaults: mcp=playwright, browser=chrome, port=first free port from 9222,
 launch=true. With launch=false the browser is never started; connect it to the
 port yourself or the MCP server has nothing to attach to.
 
-On startup a "marker" tab is opened in the shared browser
-(/tmp/playwright-browser-mcp/<browser>-<port>/index.html) showing the working
-folder, port, profile, and MCP server, so you can tell which repo owns the
-browser. Best-effort; one marker tab per browser instance (deduped).
+On startup a "marker" tab is opened in the shared browser, served from
+~/Library/Application Support/playwright-browser-mcp/<browser>-<port>/index.html
+(persists across reboots), showing the working folder, port, profile, and MCP
+server, so you can tell which repo owns the browser. Best-effort; one marker tab
+per browser instance (deduped). Free-port detection also skips any port that
+already has a marker (a stopped instance keeps its port).
 EOF
 }
 
@@ -48,6 +53,16 @@ read_yml() {
   [ -f "$CONFIG_YML" ] || return 0
   sed -n "s/^$1:[[:space:]]*//p" "$CONFIG_YML" | head -n1 \
     | sed 's/[[:space:]]*#.*$//; s/[[:space:]]*$//'
+}
+
+# True if a persisted marker reserves this port (any browser). Lets a stopped
+# instance keep its port so free-port detection skips over it.
+port_reserved() {
+  local matches
+  shopt -s nullglob
+  matches=("${MARKER_BASE}/"*"-$1/index.html")
+  shopt -u nullglob
+  [ "${#matches[@]}" -gt 0 ]
 }
 
 # Parse wrapper flags.
@@ -126,8 +141,10 @@ if [ -z "$PORT" ] && [ -f "$LEGACY_PORT_FILE" ]; then
   PORT="$(cat "$LEGACY_PORT_FILE")"
 fi
 if [ -z "$PORT" ]; then
+  # Skip ports that are listening OR already reserved by a marker (a stopped
+  # instance keeps its port across restarts).
   PORT=9222
-  while lsof -Pi ":$PORT" -sTCP:LISTEN -t >/dev/null 2>&1; do
+  while lsof -Pi ":$PORT" -sTCP:LISTEN -t >/dev/null 2>&1 || port_reserved "$PORT"; do
     PORT=$((PORT + 1))
   done
 fi
@@ -172,9 +189,9 @@ fi
 # (stdout is the MCP stdio channel) and the wrapper still execs the MCP server.
 setup_marker() {
   local cdp="http://localhost:${PORT}"
-  # Marker lives in a per browser+port dir under /tmp (instance-specific, not
-  # tied to the launching repo).
-  local marker_dir="/tmp/playwright-browser-mcp/${BROWSER}-${PORT}"
+  # Marker lives in a per browser+port dir under Application Support
+  # (instance-specific, not tied to the launching repo; persists across reboots).
+  local marker_dir="${MARKER_BASE}/${BROWSER}-${PORT}"
   local marker_html="${marker_dir}/index.html"
   local marker_abs="${marker_html}"
   local profile_dir="${HOME}/Library/Application Support/simple-browser/chrome-${PORT}"
