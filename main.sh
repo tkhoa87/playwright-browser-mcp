@@ -227,12 +227,10 @@ setup_marker() {
   # resolution. Interpolated values are HTML-escaped first. The mcp/port/browser
   # values are shown once via the embedded config.yml content (no duplication).
   local config_abs="${PWD}/.playwright-mcp/config.yml"
-  local folder_name="${PWD##*/}"
   local cfg_content enc_cfg enc_folder enc_profile
   local ic_vscode ic_cursor ic_windsurf ic_antigravity
-  local e_pwd e_name e_profile e_cfg_content
+  local e_pwd e_profile e_cfg_content
   e_pwd="$(html_escape "$PWD")"
-  e_name="$(html_escape "$folder_name")"
   e_profile="$(html_escape "$profile_dir")"
   cfg_content="$(cat "$CONFIG_YML" 2>/dev/null || true)"
   e_cfg_content="$(html_escape "$cfg_content")"
@@ -253,7 +251,7 @@ setup_marker() {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${e_name} · browser-mcp</title>
+<title>Playwright Browser MCP</title>
 <style>
   :root{
     --bg:oklch(0.16 0.022 274);
@@ -496,13 +494,36 @@ const sameUrl = (u) => {
   }
   if (markers.length > 0) process.exit(0); // one already open
   // None yet: open one. Modern Chrome needs PUT on /json/new; older accepts GET.
+  let opened = false;
   try {
-    if (ok(await req("/json/new?" + encoded, "PUT"))) process.exit(0);
+    if (ok(await req("/json/new?" + encoded, "PUT"))) opened = true;
   } catch {}
+  if (!opened) {
+    try {
+      if (ok(await req("/json/new?" + encoded, "GET"))) opened = true;
+    } catch {}
+  }
+  if (!opened) process.exit(1);
+  // Reuse the blank "New Tab" a freshly launched browser opens: CDP HTTP has no
+  // navigate verb, so the equivalent is to close the leftover blank page now that
+  // the marker is open — the user is left with just the marker, not New Tab + it.
+  const isBlank = (u) =>
+    u === "" ||
+    u === "about:blank" ||
+    u.startsWith("chrome://newtab") ||
+    u.startsWith("chrome://new-tab-page") ||
+    u.startsWith("edge://newtab");
   try {
-    if (ok(await req("/json/new?" + encoded, "GET"))) process.exit(0);
+    const after = JSON.parse((await req("/json/list", "GET")).body);
+    for (const t of after) {
+      if (t.type === "page" && isBlank(t.url || "")) {
+        try {
+          await req("/json/close/" + t.id, "GET");
+        } catch {}
+      }
+    }
   } catch {}
-  process.exit(1);
+  process.exit(0);
 })();
 NODE
   then
