@@ -206,19 +206,23 @@ setup_marker() {
   local config_abs="${PWD}/.playwright-mcp/config.yml"
   local folder_name="${PWD##*/}"
   local cfg_content enc_cfg enc_folder enc_profile
+  local ic_vscode ic_cursor ic_windsurf ic_antigravity
   local e_pwd e_name e_profile e_cfg_content
   e_pwd="$(html_escape "$PWD")"
   e_name="$(html_escape "$folder_name")"
   e_profile="$(html_escape "$profile_dir")"
   cfg_content="$(cat "$CONFIG_YML" 2>/dev/null || true)"
   e_cfg_content="$(html_escape "$cfg_content")"
-  # URL-encoded paths. config.yml opens via <editor>://file<path> (VS Code and
-  # forks all share that shape); the dropdown offers one item per editor. Folders
-  # use a plain file:// link (the browser opens the folder listing — a sandboxed
-  # page cannot launch Finder/Explorer directly).
+  # config.yml opens via <editor>://file<path> (VS Code and forks share that
+  # shape); the dropdown offers one item per editor, each with its favicon
+  # (inlined as a data URI). Folders open as a browser directory listing (file://).
   enc_cfg="$(urlencode "$config_abs")"
   enc_folder="$(urlencode "$PWD")"
   enc_profile="$(urlencode "$profile_dir")"
+  ic_vscode="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAMAAACdt4HsAAAAUVBMVEVHcEwAdbwNktwjq/MbnukAesEAfMMAe8IIgsoCfsUAdbcip/IkrvMho/IAhdEAbrEAebsmsvQAjNQAgc8jqvIAiNIfn/EAfM0Aj9UAZ60AcMj8DbWHAAAACnRSTlMA3dOsgXhZshoyihrbnQAAAopJREFUWIWdl+uCgiAQhcHygpqgZkrv/6A7gBdmwFU601o/Oh9nCHFhLEXP7PFMMmAJpepP3/+MAL+qZd//iijUDuj7R7o/Vxag+1WPKtk/IkAiolSKJLAIkeongNtzwY13jAHu/SBc7QECQHNtr5QnB2jXMpdEPwDatu29uvILRQE98l8BCuKXNoGvFL9ZyRiwJ8if0VUFy6+2vqsECygP/aU3tKs4oFqsysBfH1r9teQhQCybcBu8VkHVJWsp4PAvS4H8EcEXsP3dsswDeG3Y2PV6XYfnJmKQYPABy+DaqGLDO/qbiJULlmlDnMS3gBYXY9ngy7QhpAz92wy/kR8ShIRMa0kRx+RY167WAAgBVFOCt8qCObBLhgCWGYfwF0gUwJ40Q2cJwIDCSzQOYDklDHLLQG6SEwArJqJFuRB05yb+Y08U04DLtsEZ1SmAVQMNMcnIPd5YvZtNHkAHgOEU0IQAIXVImLLbgALmS+uOArqJTuIJIJcWoMcAMOV3ANZvCXPYRnkNKKXcCWrqus4Mbd4691lcAEq3aFdCbW1Y+b8ALj0BgQcEv42meaEifiDAhhJGmLrtjiT+19H/KrulhYSuK3ZAY/+cXkxq5F831RjBtfEiQh3oo9XRc472BZcqBhAk/iY+UnXjWEQA5iZYCz/aMnBstb3NZQTAKjd8+HANMozzzJsQwMxE6tjjPQL4RgEsz+P/YNwGnKmIAj7mtdX/AEoAgDMfhAsAE9gPgA/WFYBV4FvLBPh66W8lAMLsBfghAYjPq0abACncdeME10Qkwc3zV7ll+H6x//bhq9wBfoKUU1MeJkg8t+UkQeqxDxal9X+T5g5L7C38enoW4B9+t4OqyPH/D4oCjm4xEIAeAAAAAElFTkSuQmCC"
+  ic_cursor="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAMAAACdt4HsAAAAS1BMVEVHcExCQTsUEgvt7OxCQTtBQDpBQDpAPzlBQDpBQDoQDgUBAADx8PD39vbZ2NcmJR++vb03NjDp6OjQz82pp6aOjYtiYF56eXdHcEzH0xfqAAAAGXRSTlMAf///4SyH/r1G//////////////////8AvnwSGwAAAkBJREFUWIWll9GigiAMhkvoQAxE0er93/QMrETdRGO3uS+2MfbvcsnsftVaSrVjUmp9vV9Iu2vVe980jdkx/Nn7Xukt4yZ7P31QNPzM9/K29P9T/pDzF+LVX+6v++aUfzxGr3P/k+4JMRP+fvGPhHcUN8X7G4AduJoyKdn8GfDj2ABL9zLVnw0AYLRoD+AQpo/3QXvO/RWsQHPhySF8zCOdAQNqcOJtbujpVBjFRQBN56yYzY3kIWIMVyKFAA+bu6NZQabCX4kUADyDE2uztn1u48Ak6L3gl2dwnd8g9EWu/350lvJPjG0q5BKAwQvWPSHCa4mQeRUNPFvy9Lm5VmVxYB1ngPEdf/o8jm5+eBYA6Fx7xAJmggYMtoMDplzHAvY6Zz6o5QF4XfjO+STa7QFimge194hAKwoA6rpk/i9XBMR7z6XCQPy5CIjXheic+M1ojwHidSEeEdO7gydgUoElPA6IDbzqHCyhOAOYOicHtOIkANs3A8DDnQaIDJBKWANIJawATCWsAGQX9SfAu4QVgCCqAJ8S/gowTd4nPwCmJvgdgA+pOADoeMCwmvUkIA4WGhDfscyfGyzkaIsAk5VwNdoaVRquEfBtAnK4FsY7Aoz/3mFqvBcEBgK+yaUFRkHiBPg0AflQo8QpiCwEpHeMFlkGRVZB5oVUQm5YJam6LzRDfMd2hSYrdU2SumG0JalbENuuKLar5T4uHNwXhYXDvBeO6pWnfulKhLNrX5P71y+e9atv/fI9MYrrv9qs///mKknzam32nQAAAABJRU5ErkJggg=="
+  ic_windsurf="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAMAAACdt4HsAAAAPFBMVEVHcEz+9+3//fLq5dv58+kKEA8AAAD59Or58+n58+nb1s1AQT6sqaGMi4WYlY9gX1vKxr22s6wpLCp7enV2e+rjAAAACnRSTlMA////////TMy91SgRkwAAAcNJREFUWIXtl9uWgyAMRUmE2ILWS///XweVS0C0TnmZNcu8lRy2GI6kCCFE+5RfxbMVazy+m77Eo3L+Smhr5kvZii/f38dT1M2X8gbcgH8GgFISUEosZQCbHKBpL8RpJjK6kHgR9ZAAQNMb88d0REoRjTkBDakCYCds7PQlaA9WJUAuXHUrYEjXhsMRIBXCywEUdUlieYMiIBNGgKLmGsAKoQwweBHAhQyg6IWXAHYYiwBFzA1FgN8zJlwAROQpKWBnJInvbQmKA6jXunfk6LMF0Glf1/AxwUyp0AJGBEDtCMFnaJSE8JwIyIXQb75AV4vgM5wntlnxc86F2HcQi8YMiTO3BTsPMiF4QCiw8xmqAwCkQjQeAJNLOJ/RASAK9VK8ibpQtmFbmwEb9scRwAut8fTYUwTYh27j86RHQ8cAL9wMxAAwUhgndQLwQlcL5r43T5ysgAs5wPvsI4ALU4C+CtBlQPDZJwATpgDvs4+AKKQpPaabAOCjewAcHOcQfJYcvoXeaPdybSjZAvwWpT4qNldc3GbGvFNtLY2GJgEXu/NZU4WM+9v2vsP+nT8YN+AG1AGqr33VF8/qq2/95bvy+v8DjMxF+LQW8G0AAAAASUVORK5CYII="
+  ic_antigravity="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAMAAACdt4HsAAABYlBMVEVHcEw5iPw2i/IziPztaDo3ifeJwGA6iPhkhug3ifjtVEg6ivgujO00h/8wivRztHQ0iftrgdLrhy41ifA0iPs+mMJNrp7rWEgwifjgryrcVmJ4wXDiUlmPeMCGxWK3w0FhprPZVmJato0pktxVjflCqKqjbqeLxWKQeL/opSZBp6z1Uj3Xuy01ifwwiPg1h/87if8wh/wvivRCiv4vi+8zktxNjPsvjek1ltEwj+Q5nMTwV0BDpK9Rg+hZifJ5e8tMq6C7ZHk+h/k2h/nOW2lXsJBAn7mGdrx1vG9dgd1Jh/SebZ3lU07meDlitoKuZo1kfszdWlOgvlBWk69wgttBhe/Ia14/iOTaZ01Cj87gpSxzfbOHdqeVcaxMh9O7uz90loxwiKFah77GelWfrVdToKGSe4uud2+kcIXlky6Sm22+qENyp37Mh0iHq2pfpo6tmVeuh2LSszGJhonJlkKWi3VeO12PAAAALXRSTlMARBro/o/8f/1lxVMt8q79vAf6/cv6i23YVBo4QcePmg6TzuC5S3QaM6re4bufpM1dAAADxklEQVRYhZ2X+T9iURTAXz2VVIQYxowxY4wxM7wShWwVSrIvlchStopR+P/n3O0t3tqcH933/d5zzj339sFxBjE40dOz3dbxwegbI/z09AEE221tsf9STJyC4IEIYh2t83+aTVEAht+t8l+aRPC4TVJoNYfBi4tms3b6+voIhjw2fG1JcAFRq9WwoJxv2wdB7GMrBcgE5e18Pr8fy7ZSxPgBRKVSe35+fmyUy2VsiMU+WU8A85UKCBpIcAKCbDZrOYURkkDlqfpcbSDDyUl+HxmspjB84HQ6nyCq1epbo3F3d0INVlNwyniIO2RYW0OGbkv8kNOZTnd1ddXr9cvLt5e3WzDEicHanRjGfB3zl5cvL7e39/fxeBwMFmvA/E79LwQIrmSGtX0rwzSUTqd3dtYBv7k5PLyCOEOGXWywUEP3MObXAUcCMBSvzs62qMFKDV0if4ji+rpYLIJhaxcbzPlxzK+uLi5ubBz2AS8z7MbXzGepX+L7+gqFAjLsIcM5TsL8Un9T8oVSqbS3t7dSTFGDqYDxCwtzc8DnmCGVOscGs4MckvjC3OzsbC6XWyqVNsFAFLs/zFog7Y/w+RwyLG1Khs9mLZDx8/PRaDSHFZugoAZjvlvOR6Mzvb29x8fHS0s4CWRInf80FIwp+RlqOMaGoxWkMG5Cv5Kfnp5KJpMJ0QCKlHETfsl5wKeQIJkARYYYQGHEj0j8DOGxAAyZDBja25HAqAlj8v0RHgqFiAAZlrHhyGXUAjUPIYiG5XZQGDWhT1F/iPKCMCk3tOs/rXbF/qGQz+9wu12dvDAZDCbCCSRACpuuwE3nj/C8h/3dFhCCwWA4HIlEkMGhK+iU56/4zI0F4Qwx6AogAbw/4t3KJRsxkBzsOrxXxqvOSm5wa9EQDjpAwHeqV11YgAyR7zqCUfEAfFrLAZZCJKJ9kHapgZoHZReLiHi01jmX2AC/doYu0aBdwyi7QSG9LvvENmiterUnQB50GsLaNTjEG6A/6zwzaBXJTlA9AlLYBGYYUa15WAJJfZ7jBphBvcsAK0BvzHB4BWRACtUKK4A34jnOzwzv9/GzBPQvOw67QA3vNvIyPmDMw2ERQTCsPMkA8NPoDdObISl8NAdFCh46gkZHyMImCEQh/7aX8gPmPLxbzCBl20l+RKwUwIpACrFfbsZr31JVeAVqoJfGy34E9F/bd+GhBgEPg53xGs+YXriYAU0NT/PXeUW0w8EM3Zyr9f3lOTg4fqq1+lm4icDHEd7kBmiFF58mz9n40IDL2r8yqiQCvN/+D+aPcPZ+RgT3AAAAAElFTkSuQmCC"
   cat > "$marker_html" <<EOF
 <!doctype html>
 <html lang="en">
@@ -311,10 +315,11 @@ setup_marker() {
     display:flex;flex-direction:column;padding:.3rem;gap:.1rem;
     background:var(--panel-2);border:1px solid var(--line);border-radius:9px;
     box-shadow:0 16px 40px -16px oklch(0 0 0/.7);}
-  .menu-list a{font-size:.78rem;color:var(--ink);text-decoration:none;border-radius:6px;
-    padding:.32rem .5rem;transition:background .12s ease;}
+  .menu-list a{display:flex;align-items:center;gap:.5rem;font-size:.78rem;color:var(--ink);
+    text-decoration:none;border-radius:6px;padding:.32rem .5rem;transition:background .12s ease;}
   .menu-list a:hover{background:color-mix(in oklch, var(--line), transparent 35%);}
   .menu-list a:focus-visible{outline:2px solid var(--mint);outline-offset:-2px;}
+  .ic{width:16px;height:16px;flex:0 0 auto;border-radius:4px;display:block;object-fit:contain;}
   @media (prefers-reduced-motion:reduce){
     .aura{animation:none}.status i{animation:none}.btn,.copy{transition:none}
   }
@@ -340,12 +345,10 @@ setup_marker() {
         <details class="menu">
           <summary class="btn" title="Open config.yml in an editor">Open</summary>
           <div class="menu-list">
-            <a href="vscode://file${enc_cfg}">VS Code</a>
-            <a href="cursor://file${enc_cfg}">Cursor</a>
-            <a href="windsurf://file${enc_cfg}">Windsurf</a>
-            <a href="antigravity://file${enc_cfg}">Antigravity</a>
-            <a href="vscodium://file${enc_cfg}">VSCodium</a>
-            <a href="file://${enc_cfg}">Browser</a>
+            <a href="vscode://file${enc_cfg}"><img class="ic" alt="" src="${ic_vscode}">VS Code</a>
+            <a href="cursor://file${enc_cfg}"><img class="ic" alt="" src="${ic_cursor}">Cursor</a>
+            <a href="windsurf://file${enc_cfg}"><img class="ic" alt="" src="${ic_windsurf}">Windsurf</a>
+            <a href="antigravity://file${enc_cfg}"><img class="ic" alt="" src="${ic_antigravity}">Antigravity</a>
           </div>
         </details>
         <button class="copy" data-copy="yaml">Copy</button>
@@ -356,7 +359,7 @@ setup_marker() {
       <div class="field-top">
         <p class="field-label">Working Folder</p>
         <span class="actions">
-          <a class="btn" href="file://${enc_folder}" title="Open folder">Open</a>
+          <a class="btn" href="file://${enc_folder}" title="Open folder in browser">Open</a>
           <button class="copy" data-copy="folder">Copy</button>
         </span>
       </div>
@@ -366,7 +369,7 @@ setup_marker() {
       <div class="field-top">
         <p class="field-label">Browser Profile</p>
         <span class="actions">
-          <a class="btn" href="file://${enc_profile}" title="Open folder">Open</a>
+          <a class="btn" href="file://${enc_profile}" title="Open folder in browser">Open</a>
           <button class="copy" data-copy="profile">Copy</button>
         </span>
       </div>
