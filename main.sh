@@ -445,23 +445,67 @@ if (yamlEl) {
 </html>
 EOF
 
-  # Dedupe: the marker path is per browser+port (one CDP endpoint == one browser
-  # instance) and space-free, so a literal match on the full path is unique.
-  local tabs
-  tabs="$(curl -fs --max-time 2 "${cdp}/json/list" 2>/dev/null || true)"
-  if printf '%s' "$tabs" | grep -qF "$marker_abs"; then
-    return 0
-  fi
-
+  # Dedupe + prune. The marker now lives under "Application Support" — its path
+  # contains a space, which Chrome reports percent-encoded (Application%20Support)
+  # in /json/list. A literal grep on the raw path therefore never matches, so
+  # every run opened a fresh marker tab (the tab flood). Match by DECODING each
+  # tab URL (robust to encoding differences), keep one marker tab, close extras
+  # (this also cleans up any pre-existing flood), and open one only if none exist.
   local file_url encoded
   file_url="file://${marker_abs}"
   encoded="$(urlencode "$file_url")"
 
-  # Modern Chrome requires PUT on /json/new; older accepts GET.
-  if curl -fs --max-time 2 -X PUT "${cdp}/json/new?${encoded}" >/dev/null 2>&1; then
-    return 0
-  fi
-  if curl -fs --max-time 2 "${cdp}/json/new?${encoded}" >/dev/null 2>&1; then
+  if MARKER_PORT="$PORT" MARKER_FILE="$file_url" MARKER_URL="$encoded" \
+    node - <<'NODE' 2>/dev/null
+const http = require("http");
+const port = process.env.MARKER_PORT;
+const target = process.env.MARKER_FILE; // decoded file:// URL to match against
+const encoded = process.env.MARKER_URL; // percent-encoded URL to open with
+const req = (path, method) =>
+  new Promise((resolve, reject) => {
+    const r = http.request({ host: "localhost", port, path, method }, (res) => {
+      let d = "";
+      res.on("data", (c) => (d += c));
+      res.on("end", () => resolve({ status: res.statusCode, body: d }));
+    });
+    r.on("error", reject);
+    r.end();
+  });
+const ok = (r) => r.status >= 200 && r.status < 400; // treat 4xx/5xx as failure
+const sameUrl = (u) => {
+  try {
+    return decodeURIComponent(u) === target;
+  } catch {
+    return u === target || u === encoded;
+  }
+};
+(async () => {
+  let tabs = [];
+  try {
+    const list = await req("/json/list", "GET");
+    if (ok(list)) tabs = JSON.parse(list.body);
+  } catch {
+    tabs = [];
+  }
+  const markers = tabs.filter((t) => sameUrl(t.url || ""));
+  // Keep the first marker tab; close every extra (prunes any existing flood).
+  for (const t of markers.slice(1)) {
+    try {
+      await req("/json/close/" + t.id, "GET");
+    } catch {}
+  }
+  if (markers.length > 0) process.exit(0); // one already open
+  // None yet: open one. Modern Chrome needs PUT on /json/new; older accepts GET.
+  try {
+    if (ok(await req("/json/new?" + encoded, "PUT"))) process.exit(0);
+  } catch {}
+  try {
+    if (ok(await req("/json/new?" + encoded, "GET"))) process.exit(0);
+  } catch {}
+  process.exit(1);
+})();
+NODE
+  then
     return 0
   fi
   echo "playwright-browser-mcp: failed to open marker tab on port ${PORT}" >&2
