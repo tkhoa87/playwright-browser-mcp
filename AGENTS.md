@@ -41,6 +41,7 @@ Each value resolves as **flag > `config.yml` > default**. Port only: legacy `.pl
 
 - Node.js and npm must be installed.
 - `lsof` must be available (used to check whether Chrome is already listening; standard on macOS/Linux).
+- `curl` must be available (used to talk to the CDP endpoint for the marker tab; standard on macOS/Linux). Missing `curl` only skips the marker — the MCP server still runs.
 
 ## Coding Style & Naming Conventions
 
@@ -69,6 +70,7 @@ Each value resolves as **flag > `config.yml` > default**. Port only: legacy `.pl
 - **`--output-dir` only applies to `@playwright/mcp`**: `chrome-devtools-mcp` has no equivalent flag.
 - **Token/perf defaults are baked into the playwright exec call** (see comments in `main.sh`): `--snapshot-mode none --image-responses omit --output-mode file`. chrome-devtools runs with upstream defaults. Revisit when upstream defaults change.
 - **Adding a new MCP server**: add the name to the `--mcp` validation `case` and a branch to the exec `case` in `main.sh`, using the server's "connect to running browser" flag.
+- **Marker tab**: before exec, `setup_marker` (in `main.sh`) writes `.playwright-mcp/marker.html` (folder/port/profile/mcp/browser) and opens it as one CDP tab so a human can tell which repo owns the shared browser. Best-effort over the CDP HTTP endpoint (`/json/version` readiness poll, `/json/list` dedupe on the `.playwright-mcp/marker.html` suffix, `PUT /json/new` with GET fallback); all failures log to stderr and never block the MCP server. Always-on, deduped (one marker tab per browser); `simple-browser` is not involved. `marker.html` is git-ignored (lives under `.playwright-mcp/`).
 
 ## Security & Configuration Tips
 

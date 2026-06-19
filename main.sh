@@ -32,6 +32,10 @@ first free port from 9222). Resolved values are written back to config.yml
 after every run.
 
 Defaults: mcp=playwright, browser=chrome, port=first free port from 9222.
+
+On startup a "marker" tab (.playwright-mcp/marker.html) is opened in the shared
+browser showing the folder, port, profile, and MCP server, so you can tell which
+repo owns the browser. Best-effort; one marker tab per browser (deduped).
 EOF
 }
 
@@ -130,6 +134,89 @@ rm -f "$LEGACY_PORT_FILE" "${CONFIG_DIR}/mcp.txt" "${CONFIG_DIR}/browser.txt"
 if ! lsof -Pi ":$PORT" -sTCP:LISTEN -t >/dev/null 2>&1; then
   npx --yes simple-browser@latest start --browser "$BROWSER" --port "$PORT" >/dev/null 2>&1
 fi
+
+# Marker tab: a folder-identity page so a human can tell which repo owns this
+# shared browser. Best-effort and non-blocking — every failure logs to stderr
+# (stdout is the MCP stdio channel) and the wrapper still execs the MCP server.
+setup_marker() {
+  local cdp="http://localhost:${PORT}"
+  local marker_html="${CONFIG_DIR}/marker.html"
+  local marker_abs="${PWD}/.playwright-mcp/marker.html"
+  local profile_dir="${HOME}/Library/Application Support/simple-browser/chrome-${PORT}"
+
+  if ! command -v curl >/dev/null 2>&1; then
+    echo "playwright-browser-mcp: curl not found; skipping marker tab" >&2
+    return 0
+  fi
+
+  # Wait for CDP to answer. Chrome forks on launch so the endpoint lags; this is
+  # a cheap no-op when the browser was already running.
+  local ready="" i
+  for ((i = 0; i < 50; i++)); do
+    if curl -fs --max-time 1 "${cdp}/json/version" >/dev/null 2>&1; then
+      ready=1
+      break
+    fi
+    sleep 0.2
+  done
+  if [ -z "$ready" ]; then
+    echo "playwright-browser-mcp: CDP on port ${PORT} not ready; skipping marker tab" >&2
+    return 0
+  fi
+
+  # (Over)write the marker page so its values track the current resolution.
+  cat > "$marker_html" <<EOF
+<!doctype html>
+<meta charset="utf-8">
+<title>marker: ${PORT}</title>
+<body style="font:14px/1.6 ui-monospace,monospace;padding:2rem;color:#222">
+<h2>playwright-browser-mcp</h2>
+<pre>
+Folder:  ${PWD}
+Port:    ${PORT}
+Profile: ${profile_dir}
+MCP:     ${MCP}
+Browser: ${BROWSER}
+</pre>
+</body>
+EOF
+
+  # Dedupe: the ".playwright-mcp/marker.html" suffix is space-free and unique
+  # within one browser (one CDP endpoint == one repo == one port).
+  local tabs
+  tabs="$(curl -fs --max-time 2 "${cdp}/json/list" 2>/dev/null || true)"
+  if printf '%s' "$tabs" | grep -qF "/.playwright-mcp/marker.html"; then
+    return 0
+  fi
+
+  local file_url encoded
+  file_url="file://${marker_abs}"
+  encoded="$(urlencode "$file_url")"
+
+  # Modern Chrome requires PUT on /json/new; older accepts GET.
+  if curl -fs --max-time 2 -X PUT "${cdp}/json/new?${encoded}" >/dev/null 2>&1; then
+    return 0
+  fi
+  if curl -fs --max-time 2 "${cdp}/json/new?${encoded}" >/dev/null 2>&1; then
+    return 0
+  fi
+  echo "playwright-browser-mcp: failed to open marker tab on port ${PORT}" >&2
+}
+
+# Percent-encode a string, leaving file-URL-safe characters intact.
+urlencode() {
+  local s="$1" out="" c i
+  for ((i = 0; i < ${#s}; i++)); do
+    c="${s:i:1}"
+    case "$c" in
+      [a-zA-Z0-9._~:/?-]) out+="$c" ;;
+      *) printf -v c '%%%02X' "'$c"; out+="$c" ;;
+    esac
+  done
+  printf '%s' "$out"
+}
+
+setup_marker || true
 
 # Run the chosen MCP server connected to the running browser
 # (never let it launch its own).
