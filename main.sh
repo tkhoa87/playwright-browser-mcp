@@ -8,9 +8,10 @@ CONFIG_DIR="./.playwright-mcp"
 CONFIG_YML="${CONFIG_DIR}/config.yml"
 LEGACY_PORT_FILE="${CONFIG_DIR}/port.txt"
 OUTPUT_DIR="${CONFIG_DIR}/output"
-# Persistent home for per-instance marker pages (one dir per browser+port).
-# Under Application Support so markers survive OS restarts (unlike /tmp).
-MARKER_BASE="${HOME}/Library/Application Support/playwright-browser-mcp"
+# Per-instance marker pages live inside simple-browser's profile area
+# (~/Library/Application Support/simple-browser/<browser>-<port>/playwright-mcp.html),
+# alongside the browser profile so they survive OS restarts (unlike /tmp).
+MARKER_BASE="${HOME}/Library/Application Support/simple-browser"
 
 print_help() {
   cat <<EOF
@@ -40,11 +41,11 @@ launch=true. With launch=false the browser is never started; connect it to the
 port yourself or the MCP server has nothing to attach to.
 
 On startup a "marker" tab is opened in the shared browser, served from
-~/Library/Application Support/playwright-browser-mcp/<browser>-<port>/index.html
+~/Library/Application Support/simple-browser/<browser>-<port>/playwright-mcp.html
 (persists across reboots), showing the working folder, port, profile, and MCP
 server, so you can tell which repo owns the browser. Best-effort; one marker tab
-per browser instance (deduped). Free-port detection also skips any port that
-already has a marker (a stopped instance keeps its port).
+per browser instance (deduped). Free-port detection skips a port whose marker
+belongs to a different working folder (the same folder reclaims its own port).
 EOF
 }
 
@@ -55,14 +56,19 @@ read_yml() {
     | sed 's/[[:space:]]*#.*$//; s/[[:space:]]*$//'
 }
 
-# True if a persisted marker reserves this port (any browser). Lets a stopped
-# instance keep its port so free-port detection skips over it.
+# True if a marker reserves this port for a DIFFERENT working folder. A stopped
+# instance keeps its port, but the same folder always reclaims its own port. The
+# working folder is read from the marker's "working-folder:" HTML comment.
 port_reserved() {
-  local matches
+  local f folder
   shopt -s nullglob
-  matches=("${MARKER_BASE}/"*"-$1/index.html")
+  local files=("${MARKER_BASE}/"*"-$1/playwright-mcp.html")
   shopt -u nullglob
-  [ "${#matches[@]}" -gt 0 ]
+  for f in "${files[@]}"; do
+    folder="$(sed -n 's/.*working-folder: \(.*\)-->.*/\1/p' "$f" | head -n1)"
+    [ "$folder" != "$PWD" ] && return 0
+  done
+  return 1
 }
 
 # Parse wrapper flags.
@@ -189,10 +195,10 @@ fi
 # (stdout is the MCP stdio channel) and the wrapper still execs the MCP server.
 setup_marker() {
   local cdp="http://localhost:${PORT}"
-  # Marker lives in a per browser+port dir under Application Support
-  # (instance-specific, not tied to the launching repo; persists across reboots).
+  # Marker lives inside simple-browser's per browser+port profile dir
+  # (persists across reboots).
   local marker_dir="${MARKER_BASE}/${BROWSER}-${PORT}"
-  local marker_html="${marker_dir}/index.html"
+  local marker_html="${marker_dir}/playwright-mcp.html"
   local marker_abs="${marker_html}"
   local profile_dir="${HOME}/Library/Application Support/simple-browser/chrome-${PORT}"
   mkdir -p "$marker_dir"
@@ -242,6 +248,7 @@ setup_marker() {
   ic_antigravity="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAMAAACdt4HsAAABYlBMVEVHcEw5iPw2i/IziPztaDo3ifeJwGA6iPhkhug3ifjtVEg6ivgujO00h/8wivRztHQ0iftrgdLrhy41ifA0iPs+mMJNrp7rWEgwifjgryrcVmJ4wXDiUlmPeMCGxWK3w0FhprPZVmJato0pktxVjflCqKqjbqeLxWKQeL/opSZBp6z1Uj3Xuy01ifwwiPg1h/87if8wh/wvivRCiv4vi+8zktxNjPsvjek1ltEwj+Q5nMTwV0BDpK9Rg+hZifJ5e8tMq6C7ZHk+h/k2h/nOW2lXsJBAn7mGdrx1vG9dgd1Jh/SebZ3lU07meDlitoKuZo1kfszdWlOgvlBWk69wgttBhe/Ia14/iOTaZ01Cj87gpSxzfbOHdqeVcaxMh9O7uz90loxwiKFah77GelWfrVdToKGSe4uud2+kcIXlky6Sm22+qENyp37Mh0iHq2pfpo6tmVeuh2LSszGJhonJlkKWi3VeO12PAAAALXRSTlMARBro/o/8f/1lxVMt8q79vAf6/cv6i23YVBo4QcePmg6TzuC5S3QaM6re4bufpM1dAAADxklEQVRYhZ2X+T9iURTAXz2VVIQYxowxY4wxM7wShWwVSrIvlchStopR+P/n3O0t3tqcH933/d5zzj339sFxBjE40dOz3dbxwegbI/z09AEE221tsf9STJyC4IEIYh2t83+aTVEAht+t8l+aRPC4TVJoNYfBi4tms3b6+voIhjw2fG1JcAFRq9WwoJxv2wdB7GMrBcgE5e18Pr8fy7ZSxPgBRKVSe35+fmyUy2VsiMU+WU8A85UKCBpIcAKCbDZrOYURkkDlqfpcbSDDyUl+HxmspjB84HQ6nyCq1epbo3F3d0INVlNwyniIO2RYW0OGbkv8kNOZTnd1ddXr9cvLt5e3WzDEicHanRjGfB3zl5cvL7e39/fxeBwMFmvA/E79LwQIrmSGtX0rwzSUTqd3dtYBv7k5PLyCOEOGXWywUEP3MObXAUcCMBSvzs62qMFKDV0if4ji+rpYLIJhaxcbzPlxzK+uLi5ubBz2AS8z7MbXzGepX+L7+gqFAjLsIcM5TsL8Un9T8oVSqbS3t7dSTFGDqYDxCwtzc8DnmCGVOscGs4MckvjC3OzsbC6XWyqVNsFAFLs/zFog7Y/w+RwyLG1Khs9mLZDx8/PRaDSHFZugoAZjvlvOR6Mzvb29x8fHS0s4CWRInf80FIwp+RlqOMaGoxWkMG5Cv5Kfnp5KJpMJ0QCKlHETfsl5wKeQIJkARYYYQGHEj0j8DOGxAAyZDBja25HAqAlj8v0RHgqFiAAZlrHhyGXUAjUPIYiG5XZQGDWhT1F/iPKCMCk3tOs/rXbF/qGQz+9wu12dvDAZDCbCCSRACpuuwE3nj/C8h/3dFhCCwWA4HIlEkMGhK+iU56/4zI0F4Qwx6AogAbw/4t3KJRsxkBzsOrxXxqvOSm5wa9EQDjpAwHeqV11YgAyR7zqCUfEAfFrLAZZCJKJ9kHapgZoHZReLiHi01jmX2AC/doYu0aBdwyi7QSG9LvvENmiterUnQB50GsLaNTjEG6A/6zwzaBXJTlA9AlLYBGYYUa15WAJJfZ7jBphBvcsAK0BvzHB4BWRACtUKK4A34jnOzwzv9/GzBPQvOw67QA3vNvIyPmDMw2ERQTCsPMkA8NPoDdObISl8NAdFCh46gkZHyMImCEQh/7aX8gPmPLxbzCBl20l+RKwUwIpACrFfbsZr31JVeAVqoJfGy34E9F/bd+GhBgEPg53xGs+YXriYAU0NT/PXeUW0w8EM3Zyr9f3lOTg4fqq1+lm4icDHEd7kBmiFF58mz9n40IDL2r8yqiQCvN/+D+aPcPZ+RgT3AAAAAElFTkSuQmCC"
   cat > "$marker_html" <<EOF
 <!doctype html>
+<!--playwright-browser-mcp working-folder: ${PWD}-->
 <html lang="en">
 <head>
 <meta charset="utf-8">
