@@ -174,19 +174,24 @@ fi
 
 # Persist resolved config; drop the legacy txt files.
 cat > "$CONFIG_YML" <<EOF
-# playwright-browser-mcp config. Resolution: flag > file > default.
-# "default" tracks the current built-in default; rewritten every run.
+# playwright-browser-mcp config
+# Resolution per value: CLI flag > this file > default.
+# This file is rewritten every run.
 
-# playwright | chrome-devtools | default
+# MCP server to run.
+# playwright | chrome-devtools | default (${DEFAULT_MCP})
 mcp: ${MCP}
 
+# Browser CDP debugging port.
 # any TCP port (default: first free from 9222)
 port: ${PORT}
 
-# chrome | electron | default
+# Browser simple-browser launches when the port is free.
+# chrome | electron | default (${DEFAULT_BROWSER})
 browser: ${BROWSER}
 
-# true | false | default — start browser if port free
+# Launch the browser when nothing is listening on the port.
+# true | false | default (${DEFAULT_LAUNCH})
 launch: ${LAUNCH}
 EOF
 rm -f "$LEGACY_PORT_FILE" "${CONFIG_DIR}/mcp.txt" "${CONFIG_DIR}/browser.txt"
