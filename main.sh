@@ -247,9 +247,13 @@ setup_marker() {
   local config_abs="${PWD}/.playwright-mcp/config.yml"
   local cfg_content enc_cfg enc_folder enc_profile
   local ic_vscode ic_cursor ic_windsurf ic_antigravity
-  local e_pwd e_profile e_cfg_content
-  e_pwd="$(html_escape "$PWD")"
-  e_profile="$(html_escape "$profile_dir")"
+  local e_folder_dir e_folder_name e_profile_dir e_profile_name e_cfg_content
+  # Split each path into "parent dir + /" and basename so the basename (the
+  # glance-able folder name) can be highlighted; copy still grabs the full path.
+  e_folder_dir="$(html_escape "${PWD%/*}/")"
+  e_folder_name="$(html_escape "${PWD##*/}")"
+  e_profile_dir="$(html_escape "${profile_dir%/*}/")"
+  e_profile_name="$(html_escape "${profile_dir##*/}")"
   cfg_content="$(cat "$CONFIG_YML" 2>/dev/null || true)"
   e_cfg_content="$(html_escape "$cfg_content")"
   # config.yml opens via <editor>://file<path> (VS Code and forks share that
@@ -333,8 +337,9 @@ setup_marker() {
   .field-top{display:flex;align-items:center;gap:.6rem;margin-bottom:.32rem;}
   .field-label{font-size:.82rem;font-weight:600;color:var(--ink);margin:0;}
   .field-top .actions{margin-left:auto;display:flex;gap:.45rem;}
-  .path{display:block;font-family:var(--mono);font-size:.77rem;color:var(--muted);
+  .path{display:block;font-family:var(--mono);font-size:.77rem;color:oklch(0.55 0.02 274);
     overflow-wrap:anywhere;word-break:break-word;line-height:1.55;margin:0;}
+  .path .name{color:var(--ink);font-weight:700;}
   .btn,.copy{font-family:var(--sans);font-size:.72rem;cursor:pointer;flex:0 0 auto;
     border:1px solid var(--line);border-radius:6px;padding:.2rem .55rem;text-decoration:none;
     display:inline-flex;align-items:center;gap:.35rem;
@@ -379,33 +384,14 @@ setup_marker() {
   </header>
 
   <section class="card">
-    <div class="bar">
-      <h2>Configuration</h2>
-      <span class="src">.playwright-mcp/config.yml</span>
+    <div class="field-top">
+      <p class="field-label">Working Folder</p>
       <span class="actions">
-        <details class="menu">
-          <summary class="btn" title="Edit config.yml in an editor">Edit</summary>
-          <div class="menu-list">
-            <a href="vscode://file${enc_cfg}"><img class="ic" alt="" src="${ic_vscode}">VS Code</a>
-            <a href="cursor://file${enc_cfg}"><img class="ic" alt="" src="${ic_cursor}">Cursor</a>
-            <a href="windsurf://file${enc_cfg}"><img class="ic" alt="" src="${ic_windsurf}">Windsurf</a>
-            <a href="antigravity://file${enc_cfg}"><img class="ic" alt="" src="${ic_antigravity}">Antigravity</a>
-          </div>
-        </details>
-        <button class="copy" data-copy="yaml">Copy</button>
+        <a class="btn" href="file://${enc_folder}" title="Open folder in browser">Open</a>
+        <button class="copy" data-copy="folder">Copy</button>
       </span>
     </div>
-    <pre class="yaml" id="yaml">${e_cfg_content}</pre>
-    <div class="field">
-      <div class="field-top">
-        <p class="field-label">Working Folder</p>
-        <span class="actions">
-          <a class="btn" href="file://${enc_folder}" title="Open folder in browser">Open</a>
-          <button class="copy" data-copy="folder">Copy</button>
-        </span>
-      </div>
-      <code class="path" id="folder">${e_pwd}</code>
-    </div>
+    <code class="path" id="folder">${e_folder_dir}<span class="name">${e_folder_name}</span></code>
     <div class="field">
       <div class="field-top">
         <p class="field-label">Browser Profile</p>
@@ -414,7 +400,26 @@ setup_marker() {
           <button class="copy" data-copy="profile">Copy</button>
         </span>
       </div>
-      <code class="path" id="profile">${e_profile}</code>
+      <code class="path" id="profile">${e_profile_dir}<span class="name">${e_profile_name}</span></code>
+    </div>
+    <div class="field">
+      <div class="bar">
+        <h2>Configuration</h2>
+        <span class="src">.playwright-mcp/config.yml</span>
+        <span class="actions">
+          <details class="menu">
+            <summary class="btn" title="Edit config.yml in an editor">Edit</summary>
+            <div class="menu-list">
+              <a href="vscode://file${enc_cfg}"><img class="ic" alt="" src="${ic_vscode}">VS Code</a>
+              <a href="cursor://file${enc_cfg}"><img class="ic" alt="" src="${ic_cursor}">Cursor</a>
+              <a href="windsurf://file${enc_cfg}"><img class="ic" alt="" src="${ic_windsurf}">Windsurf</a>
+              <a href="antigravity://file${enc_cfg}"><img class="ic" alt="" src="${ic_antigravity}">Antigravity</a>
+            </div>
+          </details>
+          <button class="copy" data-copy="yaml">Copy</button>
+        </span>
+      </div>
+      <pre class="yaml" id="yaml">${e_cfg_content}</pre>
     </div>
   </section>
 </main>
