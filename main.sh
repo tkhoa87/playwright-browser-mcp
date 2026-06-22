@@ -384,7 +384,7 @@ setup_marker() {
       <span class="src">.playwright-mcp/config.yml</span>
       <span class="actions">
         <details class="menu">
-          <summary class="btn" title="Open config.yml in an editor">Open</summary>
+          <summary class="btn" title="Edit config.yml in an editor">Edit</summary>
           <div class="menu-list">
             <a href="vscode://file${enc_cfg}"><img class="ic" alt="" src="${ic_vscode}">VS Code</a>
             <a href="cursor://file${enc_cfg}"><img class="ic" alt="" src="${ic_cursor}">Cursor</a>
