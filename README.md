@@ -1,4 +1,4 @@
-# playwright-browser-mcp
+# Playwright Browser MCP
 
 A tiny wrapper that connects a browser-automation MCP server to a shared, already-running Chrome instance.
 

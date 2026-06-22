@@ -13,6 +13,11 @@ OUTPUT_DIR="${CONFIG_DIR}/output"
 # alongside the browser profile so they survive OS restarts (unlike /tmp).
 MARKER_BASE="${HOME}/Library/Application Support/simple-browser"
 
+# Own package version (for the marker page), read from the package.json next to
+# this script. Best-effort: empty if node or the file is unavailable.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PKG_VERSION="$(node -p "require('${SCRIPT_DIR}/package.json').version" 2>/dev/null || true)"
+
 # Code defaults. The literal value "default" (accepted for mcp/browser/launch via
 # flag or config.yml) is a sentinel: it is persisted as-is so it always tracks
 # whatever these constants are, and is resolved to the constant at runtime.
@@ -258,6 +263,8 @@ setup_marker() {
   e_profile_full="$(html_escape "$profile_dir")"
   cfg_content="$(cat "$CONFIG_YML" 2>/dev/null || true)"
   e_cfg_content="$(html_escape "$cfg_content")"
+  local e_version=""
+  [ -n "${PKG_VERSION}" ] && e_version="v$(html_escape "$PKG_VERSION")"
   # config.yml opens via <editor>://file<path> (VS Code and forks share that
   # shape); the dropdown offers one item per editor, each with its favicon
   # (inlined as a data URI).
@@ -311,6 +318,9 @@ setup_marker() {
   .mark::after{content:"";position:absolute;inset:7px;border-radius:50%;background:var(--bg);}
   .head .title{display:flex;flex-direction:column;justify-content:center;}
   .head h1{font-size:1.06rem;font-weight:650;letter-spacing:-.01em;margin:0;}
+  .head h1 .title-link{color:inherit;text-decoration:none;}
+  .head h1 .title-link:hover{text-decoration:underline;}
+  .head h1 .ver{margin-left:.4rem;font-size:.78rem;font-weight:500;color:var(--muted);opacity:.7;letter-spacing:0;}
   .head .tag{margin:.12rem 0 0;font-size:.8rem;color:var(--muted);}
   .status{margin-left:auto;display:inline-flex;align-items:center;gap:.42rem;
     font-family:var(--mono);font-size:.72rem;color:var(--mint);
@@ -378,7 +388,7 @@ setup_marker() {
   <header class="head">
     <span class="mark" aria-hidden="true"></span>
     <div class="title">
-      <h1>Playwright&nbsp;Browser&nbsp;MCP</h1>
+      <h1><a class="title-link" href="https://www.npmjs.com/package/playwright-browser-mcp" target="_blank" rel="noopener">Playwright&nbsp;Browser&nbsp;MCP</a><span class="ver">${e_version}</span></h1>
       <p class="tag">One shared browser, wired to your MCP session.</p>
     </div>
     <span class="status"><i></i>connected</span>
