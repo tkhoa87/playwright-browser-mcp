@@ -28,10 +28,10 @@ This repo is a tiny wrapper (`main.sh`) that connects a browser-automation MCP s
 
 | Flag | Description |
 |------|-------------|
-| `--mcp <name>` | MCP server: `playwright` or `chrome-devtools`. |
+| `--mcp <name>` | MCP server: `playwright`, `chrome-devtools`, or `default`. |
 | `--port <N>` | Browser CDP debugging port. |
-| `--browser <name>` | Browser started by `simple-browser`: `chrome` or `electron`. |
-| `--launch <bool>` | Start the browser when the port is free: `true` or `false`. |
+| `--browser <name>` | Browser started by `simple-browser`: `chrome`, `electron`, or `default`. |
+| `--launch <bool>` | Start the browser when the port is free: `true`, `false`, or `default`. |
 | `-h`, `--help` | Show wrapper help and exit. |
 
 Unknown arguments are rejected with an error (nothing is passed through to the MCP server).
@@ -42,10 +42,12 @@ Each value resolves as **flag > `config.yml` > default**. Port only: legacy `.pl
 
 | Key | Default | Values |
 |-----|---------|--------|
-| `mcp` | `playwright` | `playwright` \| `chrome-devtools` |
+| `mcp` | `playwright` | `playwright` \| `chrome-devtools` \| `default` |
 | `port` | first free port from 9222 | any TCP port |
-| `browser` | `chrome` | `chrome` \| `electron` |
-| `launch` | `true` | `true` \| `false` |
+| `browser` | `chrome` | `chrome` \| `electron` \| `default` |
+| `launch` | `true` | `true` \| `false` \| `default` |
+
+The literal `default` (mcp/browser/launch only) is a sentinel: persisted as-is (not pinned to a concrete value) and resolved to the current built-in default at runtime via `*_EFF` vars in `main.sh`, so it keeps tracking the default if a future version changes it. Unset/empty resolves to `default` too (`${VAR:-default}`), so a no-flag run persists `default` for mcp/browser/launch rather than the concrete value. `port` has no sentinel (its default is the dynamic free-port scan).
 
 ### Prerequisites
 

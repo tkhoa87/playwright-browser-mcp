@@ -34,9 +34,10 @@ npx --yes playwright-browser-mcp@latest --mcp chrome-devtools --port 9333 --brow
 
 | Flag | Description |
 |------|-------------|
-| `--mcp <name>` | MCP server: `playwright` or `chrome-devtools`. |
+| `--mcp <name>` | MCP server: `playwright`, `chrome-devtools`, or `default`. |
 | `--port <N>` | Browser CDP debugging port. |
-| `--browser <name>` | Browser started by `simple-browser`: `chrome` or `electron`. |
+| `--browser <name>` | Browser started by `simple-browser`: `chrome`, `electron`, or `default`. |
+| `--launch <bool>` | Start the browser if the port is free: `true`, `false`, or `default`. |
 | `-h`, `--help` | Show help and exit. |
 
 Unknown arguments are rejected.
@@ -45,18 +46,24 @@ Unknown arguments are rejected.
 
 Each value resolves as **flag > `config.yml` > default** (port also falls back to legacy `port.txt` before detecting a free port). Resolved values are written back to `config.yml` after every run; legacy txt files are removed.
 
+For `mcp`, `browser`, and `launch` the literal value `default` is a sentinel: it is persisted as-is (not pinned to a concrete value) and resolves to the current built-in default at runtime, so it keeps tracking the default if a future version changes it. When you don't pass a flag and the key isn't already pinned in `config.yml`, the value persists as `default` (not the concrete value) — a fresh run writes `default` for all three.
+
 ```yaml
 # MCP server to run.
-# Values: playwright | chrome-devtools (default: playwright)
-mcp: playwright
+# Values: playwright | chrome-devtools | default (default: playwright)
+mcp: default
 
 # Browser CDP debugging port.
 # Values: any TCP port (default: first free port from 9222, detected once)
 port: 9222
 
 # Browser started by simple-browser when nothing is listening on the port.
-# Values: chrome | electron (default: chrome)
-browser: chrome
+# Values: chrome | electron | default (default: chrome)
+browser: default
+
+# Start the browser via simple-browser when nothing is listening on the port.
+# Values: true | false | default (default: true)
+launch: default
 ```
 
 Playwright MCP screenshots/artifacts go to `.playwright-mcp/output` (chrome-devtools-mcp has no output-dir flag).

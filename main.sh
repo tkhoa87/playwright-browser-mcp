@@ -13,6 +13,13 @@ OUTPUT_DIR="${CONFIG_DIR}/output"
 # alongside the browser profile so they survive OS restarts (unlike /tmp).
 MARKER_BASE="${HOME}/Library/Application Support/simple-browser"
 
+# Code defaults. The literal value "default" (accepted for mcp/browser/launch via
+# flag or config.yml) is a sentinel: it is persisted as-is so it always tracks
+# whatever these constants are, and is resolved to the constant at runtime.
+DEFAULT_MCP="playwright"
+DEFAULT_BROWSER="chrome"
+DEFAULT_LAUNCH="true"
+
 print_help() {
   cat <<EOF
 playwright-browser-mcp
@@ -25,16 +32,18 @@ Usage:
   playwright-browser-mcp [flags]
 
 Flags:
-  --mcp <name>       MCP server to run: playwright or chrome-devtools.
+  --mcp <name>       MCP server to run: playwright, chrome-devtools, or default.
   --port <N>         Browser CDP debugging port.
-  --browser <name>   Browser started by simple-browser: chrome or electron.
-  --launch <bool>    Start the browser if the port is free: true or false.
+  --browser <name>   Browser started by simple-browser: chrome, electron, or default.
+  --launch <bool>    Start the browser if the port is free: true, false, or default.
   -h, --help         Show this help and exit.
 
 Config resolution (per value): flag > .playwright-mcp/config.yml > default
 (port also falls back to legacy .playwright-mcp/port.txt before detecting the
 first free port from 9222). Resolved values are written back to config.yml
-after every run.
+after every run. For mcp/browser/launch the literal "default" is a sentinel:
+it is persisted as-is and resolves to the current built-in default at runtime,
+so it keeps tracking the default if a future version changes it.
 
 Defaults: mcp=playwright, browser=chrome, port=first free port from 9222,
 launch=true. With launch=false the browser is never started; connect it to the
@@ -107,37 +116,44 @@ done
 
 mkdir -p "$CONFIG_DIR"
 
-# MCP server: flag > config.yml > playwright.
+# MCP server: flag > config.yml > "default". Unset resolves to the "default"
+# sentinel (persisted as-is, resolved to $DEFAULT_MCP at runtime below).
 if [ -z "$MCP" ]; then
   MCP="$(read_yml mcp)"
 fi
-MCP="${MCP:-playwright}"
+MCP="${MCP:-default}"
 case "$MCP" in
-  playwright|chrome-devtools) ;;
+  playwright|chrome-devtools|default) ;;
   *)
-    echo "playwright-browser-mcp: unknown MCP server '$MCP' (expected playwright or chrome-devtools)" >&2
+    echo "playwright-browser-mcp: unknown MCP server '$MCP' (expected playwright, chrome-devtools, or default)" >&2
     exit 1
     ;;
 esac
+[ "$MCP" = default ] && MCP_EFF="$DEFAULT_MCP" || MCP_EFF="$MCP"
 
-# Browser: flag > config.yml > chrome.
+# Browser: flag > config.yml > "default". Unset resolves to the "default"
+# sentinel (persisted as-is, resolved to $DEFAULT_BROWSER at runtime below).
 if [ -z "$BROWSER" ]; then
   BROWSER="$(read_yml browser)"
 fi
-BROWSER="${BROWSER:-chrome}"
+BROWSER="${BROWSER:-default}"
+[ "$BROWSER" = default ] && BROWSER_EFF="$DEFAULT_BROWSER" || BROWSER_EFF="$BROWSER"
 
-# Launch browser when the port is free: flag > config.yml > true.
+# Launch browser when the port is free: flag > config.yml > "default". Unset
+# resolves to the "default" sentinel (persisted as-is, resolved to
+# $DEFAULT_LAUNCH at runtime below).
 if [ -z "$LAUNCH" ]; then
   LAUNCH="$(read_yml launch)"
 fi
-LAUNCH="${LAUNCH:-true}"
+LAUNCH="${LAUNCH:-default}"
 case "$LAUNCH" in
-  true|false) ;;
+  true|false|default) ;;
   *)
-    echo "playwright-browser-mcp: unknown launch value '$LAUNCH' (expected true or false)" >&2
+    echo "playwright-browser-mcp: unknown launch value '$LAUNCH' (expected true, false, or default)" >&2
     exit 1
     ;;
 esac
+[ "$LAUNCH" = default ] && LAUNCH_EFF="$DEFAULT_LAUNCH" || LAUNCH_EFF="$LAUNCH"
 
 # Port: flag > config.yml > legacy port.txt > first free port from 9222.
 if [ -z "$PORT" ]; then
@@ -160,9 +176,11 @@ cat > "$CONFIG_YML" <<EOF
 # playwright-browser-mcp configuration
 # Resolution per value: CLI flag > this file > default. Resolved values are
 # written back here after every run, so a flag run updates future runs too.
+# "default" (mcp/browser/launch) is a sentinel that always tracks the current
+# built-in default; it is kept as-is here, not pinned to a concrete value.
 
 # MCP server to run.
-# Values: playwright | chrome-devtools (default: playwright)
+# Values: playwright | chrome-devtools | default (default: playwright)
 mcp: ${MCP}
 
 # Browser CDP debugging port.
@@ -170,12 +188,12 @@ mcp: ${MCP}
 port: ${PORT}
 
 # Browser started by simple-browser when nothing is listening on the port.
-# Values: chrome | electron (default: chrome)
+# Values: chrome | electron | default (default: chrome)
 browser: ${BROWSER}
 
 # Start the browser via simple-browser when nothing is listening on the port.
 # Set false to attach only to a browser you start yourself.
-# Values: true | false (default: true)
+# Values: true | false | default (default: true)
 launch: ${LAUNCH}
 EOF
 rm -f "$LEGACY_PORT_FILE" "${CONFIG_DIR}/mcp.txt" "${CONFIG_DIR}/browser.txt"
@@ -183,8 +201,8 @@ rm -f "$LEGACY_PORT_FILE" "${CONFIG_DIR}/mcp.txt" "${CONFIG_DIR}/browser.txt"
 # Start the browser via simple-browser only if nothing is listening on the port
 # and launch is enabled.
 if ! lsof -Pi ":$PORT" -sTCP:LISTEN -t >/dev/null 2>&1; then
-  if [ "$LAUNCH" = true ]; then
-    npx --yes simple-browser@latest start --browser "$BROWSER" --port "$PORT" >/dev/null 2>&1
+  if [ "$LAUNCH_EFF" = true ]; then
+    npx --yes simple-browser@latest start --browser "$BROWSER_EFF" --port "$PORT" >/dev/null 2>&1
   else
     echo "playwright-browser-mcp: nothing listening on port ${PORT} and launch=false; not starting a browser" >&2
   fi
@@ -194,10 +212,10 @@ fi
 # shared browser. Best-effort and non-blocking — every failure logs to stderr
 # (stdout is the MCP stdio channel) and the wrapper still execs the MCP server.
 setup_marker() {
-  local cdp="http://localhost:${PORT}"
+  local cdp="http://127.0.0.1:${PORT}"
   # Marker lives inside simple-browser's per browser+port profile dir
   # (persists across reboots).
-  local marker_dir="${MARKER_BASE}/${BROWSER}-${PORT}"
+  local marker_dir="${MARKER_BASE}/${BROWSER_EFF}-${PORT}"
   local marker_html="${marker_dir}/playwright-mcp.html"
   local marker_abs="${marker_html}"
   local profile_dir="${HOME}/Library/Application Support/simple-browser/chrome-${PORT}"
@@ -461,7 +479,7 @@ const target = process.env.MARKER_FILE; // decoded file:// URL to match against
 const encoded = process.env.MARKER_URL; // percent-encoded URL to open with
 const req = (path, method) =>
   new Promise((resolve, reject) => {
-    const r = http.request({ host: "localhost", port, path, method }, (res) => {
+    const r = http.request({ host: "127.0.0.1", port, path, method }, (res) => {
       let d = "";
       res.on("data", (c) => (d += c));
       res.on("end", () => resolve({ status: res.statusCode, body: d }));
@@ -486,14 +504,18 @@ const sameUrl = (u) => {
     tabs = [];
   }
   const markers = tabs.filter((t) => sameUrl(t.url || ""));
-  // Keep the first marker tab; close every extra (prunes any existing flood).
-  for (const t of markers.slice(1)) {
+  const freshLaunch = markers.length === 0;
+  // Close EVERY existing marker tab (not just extras). The marker HTML is
+  // rewritten each run so it tracks the current config.yml, but CDP HTTP has no
+  // navigate/reload verb — a tab left open keeps its stale, earlier-loaded copy.
+  // Recreating the tab is how we force the freshly written file to reload (and
+  // it still prunes any pre-existing flood down to one).
+  for (const t of markers) {
     try {
       await req("/json/close/" + t.id, "GET");
     } catch {}
   }
-  if (markers.length > 0) process.exit(0); // one already open
-  // None yet: open one. Modern Chrome needs PUT on /json/new; older accepts GET.
+  // Open a fresh marker. Modern Chrome needs PUT on /json/new; older accepts GET.
   let opened = false;
   try {
     if (ok(await req("/json/new?" + encoded, "PUT"))) opened = true;
@@ -504,9 +526,12 @@ const sameUrl = (u) => {
     } catch {}
   }
   if (!opened) process.exit(1);
-  // Reuse the blank "New Tab" a freshly launched browser opens: CDP HTTP has no
-  // navigate verb, so the equivalent is to close the leftover blank page now that
-  // the marker is open — the user is left with just the marker, not New Tab + it.
+  // Only on a fresh launch do we reuse the blank "New Tab" the browser opens:
+  // close the leftover blank page now that the marker is open, so the user is
+  // left with just the marker, not New Tab + it. On a re-run against an already
+  // running browser there is no such blank page to reclaim, and closing one
+  // would nuke the user's own New Tab — so skip the cleanup in that case.
+  if (!freshLaunch) process.exit(0);
   const isBlank = (u) =>
     u === "" ||
     u === "about:blank" ||
@@ -559,7 +584,7 @@ setup_marker || true
 
 # Run the chosen MCP server connected to the running browser
 # (never let it launch its own).
-case "$MCP" in
+case "$MCP_EFF" in
   playwright)
     # Token/perf defaults:
     #   --snapshot-mode none    upstream default "full" appends the whole
@@ -572,7 +597,7 @@ case "$MCP" in
     #                           --output-dir and reference them in responses
     #                           instead of inlining (upstream default: stdout).
     exec npx --yes @playwright/mcp@latest \
-      --cdp-endpoint "http://localhost:${PORT}" \
+      --cdp-endpoint "http://127.0.0.1:${PORT}" \
       --output-dir "$OUTPUT_DIR" \
       --snapshot-mode none \
       --image-responses omit \
@@ -580,6 +605,6 @@ case "$MCP" in
     ;;
   chrome-devtools)
     exec npx --yes chrome-devtools-mcp@latest \
-      --browserUrl "http://localhost:${PORT}"
+      --browserUrl "http://127.0.0.1:${PORT}"
     ;;
 esac
