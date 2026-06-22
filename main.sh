@@ -174,27 +174,19 @@ fi
 
 # Persist resolved config; drop the legacy txt files.
 cat > "$CONFIG_YML" <<EOF
-# playwright-browser-mcp configuration
-# Resolution per value: CLI flag > this file > default. Resolved values are
-# written back here after every run, so a flag run updates future runs too.
-# "default" (mcp/browser/launch) is a sentinel that always tracks the current
-# built-in default; it is kept as-is here, not pinned to a concrete value.
+# playwright-browser-mcp config. Resolution: flag > file > default.
+# "default" tracks the current built-in default; rewritten every run.
 
-# MCP server to run.
-# Values: playwright | chrome-devtools | default (default: playwright)
+# playwright | chrome-devtools | default
 mcp: ${MCP}
 
-# Browser CDP debugging port.
-# Values: any TCP port (default: first free port from 9222, detected once)
+# any TCP port (default: first free from 9222)
 port: ${PORT}
 
-# Browser started by simple-browser when nothing is listening on the port.
-# Values: chrome | electron | default (default: chrome)
+# chrome | electron | default
 browser: ${BROWSER}
 
-# Start the browser via simple-browser when nothing is listening on the port.
-# Set false to attach only to a browser you start yourself.
-# Values: true | false | default (default: true)
+# true | false | default — start browser if port free
 launch: ${LAUNCH}
 EOF
 rm -f "$LEGACY_PORT_FILE" "${CONFIG_DIR}/mcp.txt" "${CONFIG_DIR}/browser.txt"
@@ -246,23 +238,25 @@ setup_marker() {
   # resolution. Interpolated values are HTML-escaped first. The mcp/port/browser
   # values are shown once via the embedded config.yml content (no duplication).
   local config_abs="${PWD}/.playwright-mcp/config.yml"
-  local cfg_content enc_cfg enc_folder enc_profile
+  local enc_cfg
   local ic_vscode ic_cursor ic_windsurf ic_antigravity
-  local e_folder_dir e_folder_name e_profile_dir e_profile_name e_cfg_content
+  local e_folder_dir e_folder_name e_profile_dir e_profile_name
+  local e_folder_full e_profile_full
+  local cfg_content e_cfg_content
   # Split each path into "parent dir + /" and basename so the basename (the
   # glance-able folder name) can be highlighted; copy still grabs the full path.
   e_folder_dir="$(html_escape "${PWD%/*}/")"
   e_folder_name="$(html_escape "${PWD##*/}")"
+  e_folder_full="$(html_escape "$PWD")"
   e_profile_dir="$(html_escape "${profile_dir%/*}/")"
   e_profile_name="$(html_escape "${profile_dir##*/}")"
+  e_profile_full="$(html_escape "$profile_dir")"
   cfg_content="$(cat "$CONFIG_YML" 2>/dev/null || true)"
   e_cfg_content="$(html_escape "$cfg_content")"
   # config.yml opens via <editor>://file<path> (VS Code and forks share that
   # shape); the dropdown offers one item per editor, each with its favicon
-  # (inlined as a data URI). Folders open as a browser directory listing (file://).
+  # (inlined as a data URI).
   enc_cfg="$(urlencode "$config_abs")"
-  enc_folder="$(urlencode "$PWD")"
-  enc_profile="$(urlencode "$profile_dir")"
   ic_vscode="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAMAAACdt4HsAAAAUVBMVEVHcEwAdbwNktwjq/MbnukAesEAfMMAe8IIgsoCfsUAdbcip/IkrvMho/IAhdEAbrEAebsmsvQAjNQAgc8jqvIAiNIfn/EAfM0Aj9UAZ60AcMj8DbWHAAAACnRSTlMA3dOsgXhZshoyihrbnQAAAopJREFUWIWdl+uCgiAQhcHygpqgZkrv/6A7gBdmwFU601o/Oh9nCHFhLEXP7PFMMmAJpepP3/+MAL+qZd//iijUDuj7R7o/Vxag+1WPKtk/IkAiolSKJLAIkeongNtzwY13jAHu/SBc7QECQHNtr5QnB2jXMpdEPwDatu29uvILRQE98l8BCuKXNoGvFL9ZyRiwJ8if0VUFy6+2vqsECygP/aU3tKs4oFqsysBfH1r9teQhQCybcBu8VkHVJWsp4PAvS4H8EcEXsP3dsswDeG3Y2PV6XYfnJmKQYPABy+DaqGLDO/qbiJULlmlDnMS3gBYXY9ngy7QhpAz92wy/kR8ShIRMa0kRx+RY167WAAgBVFOCt8qCObBLhgCWGYfwF0gUwJ40Q2cJwIDCSzQOYDklDHLLQG6SEwArJqJFuRB05yb+Y08U04DLtsEZ1SmAVQMNMcnIPd5YvZtNHkAHgOEU0IQAIXVImLLbgALmS+uOArqJTuIJIJcWoMcAMOV3ANZvCXPYRnkNKKXcCWrqus4Mbd4691lcAEq3aFdCbW1Y+b8ALj0BgQcEv42meaEifiDAhhJGmLrtjiT+19H/KrulhYSuK3ZAY/+cXkxq5F831RjBtfEiQh3oo9XRc472BZcqBhAk/iY+UnXjWEQA5iZYCz/aMnBstb3NZQTAKjd8+HANMozzzJsQwMxE6tjjPQL4RgEsz+P/YNwGnKmIAj7mtdX/AEoAgDMfhAsAE9gPgA/WFYBV4FvLBPh66W8lAMLsBfghAYjPq0abACncdeME10Qkwc3zV7ll+H6x//bhq9wBfoKUU1MeJkg8t+UkQeqxDxal9X+T5g5L7C38enoW4B9+t4OqyPH/D4oCjm4xEIAeAAAAAElFTkSuQmCC"
   ic_cursor="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAMAAACdt4HsAAAAS1BMVEVHcExCQTsUEgvt7OxCQTtBQDpBQDpAPzlBQDpBQDoQDgUBAADx8PD39vbZ2NcmJR++vb03NjDp6OjQz82pp6aOjYtiYF56eXdHcEzH0xfqAAAAGXRSTlMAf///4SyH/r1G//////////////////8AvnwSGwAAAkBJREFUWIWll9GigiAMhkvoQAxE0er93/QMrETdRGO3uS+2MfbvcsnsftVaSrVjUmp9vV9Iu2vVe980jdkx/Nn7Xukt4yZ7P31QNPzM9/K29P9T/pDzF+LVX+6v++aUfzxGr3P/k+4JMRP+fvGPhHcUN8X7G4AduJoyKdn8GfDj2ABL9zLVnw0AYLRoD+AQpo/3QXvO/RWsQHPhySF8zCOdAQNqcOJtbujpVBjFRQBN56yYzY3kIWIMVyKFAA+bu6NZQabCX4kUADyDE2uztn1u48Ak6L3gl2dwnd8g9EWu/350lvJPjG0q5BKAwQvWPSHCa4mQeRUNPFvy9Lm5VmVxYB1ngPEdf/o8jm5+eBYA6Fx7xAJmggYMtoMDplzHAvY6Zz6o5QF4XfjO+STa7QFimge194hAKwoA6rpk/i9XBMR7z6XCQPy5CIjXheic+M1ojwHidSEeEdO7gydgUoElPA6IDbzqHCyhOAOYOicHtOIkANs3A8DDnQaIDJBKWANIJawATCWsAGQX9SfAu4QVgCCqAJ8S/gowTd4nPwCmJvgdgA+pOADoeMCwmvUkIA4WGhDfscyfGyzkaIsAk5VwNdoaVRquEfBtAnK4FsY7Aoz/3mFqvBcEBgK+yaUFRkHiBPg0AflQo8QpiCwEpHeMFlkGRVZB5oVUQm5YJam6LzRDfMd2hSYrdU2SumG0JalbENuuKLar5T4uHNwXhYXDvBeO6pWnfulKhLNrX5P71y+e9atv/fI9MYrrv9qs///mKknzam32nQAAAABJRU5ErkJggg=="
   ic_windsurf="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAMAAACdt4HsAAAAPFBMVEVHcEz+9+3//fLq5dv58+kKEA8AAAD59Or58+n58+nb1s1AQT6sqaGMi4WYlY9gX1vKxr22s6wpLCp7enV2e+rjAAAACnRSTlMA////////TMy91SgRkwAAAcNJREFUWIXtl9uWgyAMRUmE2ILWS///XweVS0C0TnmZNcu8lRy2GI6kCCFE+5RfxbMVazy+m77Eo3L+Smhr5kvZii/f38dT1M2X8gbcgH8GgFISUEosZQCbHKBpL8RpJjK6kHgR9ZAAQNMb88d0REoRjTkBDakCYCds7PQlaA9WJUAuXHUrYEjXhsMRIBXCywEUdUlieYMiIBNGgKLmGsAKoQwweBHAhQyg6IWXAHYYiwBFzA1FgN8zJlwAROQpKWBnJInvbQmKA6jXunfk6LMF0Glf1/AxwUyp0AJGBEDtCMFnaJSE8JwIyIXQb75AV4vgM5wntlnxc86F2HcQi8YMiTO3BTsPMiF4QCiw8xmqAwCkQjQeAJNLOJ/RASAK9VK8ibpQtmFbmwEb9scRwAut8fTYUwTYh27j86RHQ8cAL9wMxAAwUhgndQLwQlcL5r43T5ysgAs5wPvsI4ALU4C+CtBlQPDZJwATpgDvs4+AKKQpPaabAOCjewAcHOcQfJYcvoXeaPdybSjZAvwWpT4qNldc3GbGvFNtLY2GJgEXu/NZU4WM+9v2vsP+nT8YN+AG1AGqr33VF8/qq2/95bvy+v8DjMxF+LQW8G0AAAAASUVORK5CYII="
@@ -304,8 +298,8 @@ setup_marker() {
     filter:blur(22px) saturate(120%);
     animation:drift 26s ease-in-out infinite alternate;}
   @keyframes drift{from{transform:translate3d(-2%,-1%,0) scale(1)}to{transform:translate3d(2%,2%,0) scale(1.08)}}
-  main{position:relative;z-index:1;width:100%;max-width:600px}
-  .head{display:flex;align-items:center;gap:.85rem;margin-bottom:1.7rem}
+  main{position:relative;z-index:1;width:100%;max-width:600px;display:flex;flex-direction:column;gap:1rem}
+  .head{display:flex;align-items:center;gap:.85rem;margin-bottom:.55rem}
   .mark{width:40px;height:40px;flex:0 0 auto;border-radius:50%;position:relative;
     background:conic-gradient(from 210deg, oklch(0.62 0.2 280), oklch(0.72 0.14 205), oklch(0.66 0.17 330), oklch(0.62 0.2 280));
     box-shadow:0 0 0 1px oklch(1 0 0/.12), 0 10px 32px -8px oklch(0.62 0.2 280/.5);}
@@ -338,9 +332,10 @@ setup_marker() {
   .field-top{display:flex;align-items:center;gap:.6rem;margin-bottom:.55rem;}
   .field-label{font-size:.82rem;font-weight:600;color:var(--ink);margin:0;}
   .field-top .actions{margin-left:auto;display:flex;gap:.45rem;}
-  .path{display:block;font-family:var(--mono);font-size:.77rem;color:oklch(0.55 0.02 274);
-    overflow-wrap:anywhere;word-break:break-word;line-height:1.55;margin:0;}
-  .path .name{color:var(--ink);font-weight:700;}
+  .path{display:flex;align-items:baseline;font-family:var(--mono);font-size:.92rem;
+    line-height:1.5;margin:0;white-space:nowrap;overflow:hidden;}
+  .path .dir{color:oklch(0.6 0.02 274);flex:0 0 auto;}
+  .path .name{color:var(--ink);font-weight:700;font-size:1.05rem;flex:0 0 auto;}
   .btn,.copy{font-family:var(--sans);font-size:.72rem;cursor:pointer;flex:0 0 auto;
     border:1px solid var(--line);border-radius:6px;padding:.2rem .55rem;text-decoration:none;
     display:inline-flex;align-items:center;gap:.35rem;
@@ -388,40 +383,40 @@ setup_marker() {
     <div class="field-top">
       <p class="field-label">Working Folder</p>
       <span class="actions">
-        <a class="btn" href="file://${enc_folder}" title="Open folder in browser">Open</a>
         <button class="copy" data-copy="folder">Copy</button>
       </span>
     </div>
-    <code class="path" id="folder">${e_folder_dir}<span class="name">${e_folder_name}</span></code>
-    <div class="field">
-      <div class="field-top">
-        <p class="field-label">Browser Profile</p>
-        <span class="actions">
-          <a class="btn" href="file://${enc_profile}" title="Open folder in browser">Open</a>
-          <button class="copy" data-copy="profile">Copy</button>
-        </span>
-      </div>
-      <code class="path" id="profile">${e_profile_dir}<span class="name">${e_profile_name}</span></code>
+    <code class="path" id="folder" data-full="${e_folder_full}"><span class="dir" data-dir="${e_folder_dir}">${e_folder_dir}</span><span class="name">${e_folder_name}</span></code>
+  </section>
+
+  <section class="card">
+    <div class="field-top">
+      <p class="field-label">Browser Profile</p>
+      <span class="actions">
+        <button class="copy" data-copy="profile">Copy</button>
+      </span>
     </div>
-    <div class="field">
-      <div class="bar">
-        <h2>Configuration</h2>
-        <span class="src">.playwright-mcp/config.yml</span>
-        <span class="actions">
-          <details class="menu">
-            <summary class="btn" title="Edit config.yml in an editor">Edit</summary>
-            <div class="menu-list">
-              <a href="vscode://file${enc_cfg}"><img class="ic" alt="" src="${ic_vscode}">VS Code</a>
-              <a href="cursor://file${enc_cfg}"><img class="ic" alt="" src="${ic_cursor}">Cursor</a>
-              <a href="windsurf://file${enc_cfg}"><img class="ic" alt="" src="${ic_windsurf}">Windsurf</a>
-              <a href="antigravity://file${enc_cfg}"><img class="ic" alt="" src="${ic_antigravity}">Antigravity</a>
-            </div>
-          </details>
-          <button class="copy" data-copy="yaml">Copy</button>
-        </span>
-      </div>
-      <pre class="yaml" id="yaml">${e_cfg_content}</pre>
+    <code class="path" id="profile" data-full="${e_profile_full}"><span class="dir" data-dir="${e_profile_dir}">${e_profile_dir}</span><span class="name">${e_profile_name}</span></code>
+  </section>
+
+  <section class="card">
+    <div class="bar">
+      <h2>Configuration</h2>
+      <span class="src">.playwright-mcp/config.yml</span>
+      <span class="actions">
+        <details class="menu">
+          <summary class="btn" title="Edit config.yml in an editor">Edit</summary>
+          <div class="menu-list">
+            <a href="vscode://file${enc_cfg}"><img class="ic" alt="" src="${ic_vscode}">VS Code</a>
+            <a href="cursor://file${enc_cfg}"><img class="ic" alt="" src="${ic_cursor}">Cursor</a>
+            <a href="windsurf://file${enc_cfg}"><img class="ic" alt="" src="${ic_windsurf}">Windsurf</a>
+            <a href="antigravity://file${enc_cfg}"><img class="ic" alt="" src="${ic_antigravity}">Antigravity</a>
+          </div>
+        </details>
+        <button class="copy" data-copy="yaml">Copy</button>
+      </span>
     </div>
+    <pre class="yaml" id="yaml">${e_cfg_content}</pre>
   </section>
 </main>
 <script>
@@ -441,7 +436,7 @@ for (const b of document.querySelectorAll(".copy")) {
     const el = document.getElementById(b.dataset.copy);
     if (!el || !navigator.clipboard) return;
     try {
-      await navigator.clipboard.writeText(el.textContent.trim());
+      await navigator.clipboard.writeText((el.dataset.full || el.textContent).trim());
       const prev = b.textContent;
       b.textContent = "Copied";
       b.classList.add("ok");
@@ -462,6 +457,30 @@ if (yamlEl) {
     return esc(m[1]) + '<span class="key">' + esc(m[2]) + "</span>" + esc(m[3]) + val;
   }).join("\n");
 }
+// Middle-truncate the dimmed parent-dir part with an ellipsis so the (bold)
+// basename always stays visible on one line. The full path is preserved in the
+// code element's data-full for copying. Binary-search the widest head…tail that
+// fits, recompute on resize.
+function fitDirs() {
+  for (const code of document.querySelectorAll(".path")) {
+    const dir = code.querySelector(".dir");
+    if (!dir) continue;
+    const full = dir.dataset.dir;
+    dir.textContent = full;
+    if (code.scrollWidth <= code.clientWidth) continue;
+    let lo = 1, hi = full.length, best = "…";
+    while (lo <= hi) {
+      const k = (lo + hi) >> 1;
+      const head = Math.ceil(k / 2), tail = Math.floor(k / 2);
+      dir.textContent = full.slice(0, head) + "…" + full.slice(full.length - tail);
+      if (code.scrollWidth <= code.clientWidth) { best = dir.textContent; lo = k + 1; }
+      else { hi = k - 1; }
+    }
+    dir.textContent = best;
+  }
+}
+fitDirs();
+window.addEventListener("resize", fitDirs);
 </script>
 </body>
 </html>

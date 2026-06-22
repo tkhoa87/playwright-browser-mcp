@@ -1,6 +1,6 @@
 {
   "name": "playwright-browser-mcp",
-  "version": "2.6.1",
+  "version": "2.7.0",
   "files": [
     "./main.sh"
   ],
