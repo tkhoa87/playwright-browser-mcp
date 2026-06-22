@@ -65,9 +65,10 @@ read_yml() {
     | sed 's/[[:space:]]*#.*$//; s/[[:space:]]*$//'
 }
 
-# True if a marker reserves this port for a DIFFERENT working folder. A stopped
-# instance keeps its port, but the same folder always reclaims its own port. The
-# working folder is read from the marker's "working-folder:" HTML comment.
+# True if a marker reserves this port for a DIFFERENT working folder that STILL
+# EXISTS. A stopped instance keeps its port, but the same folder always reclaims
+# its own port, and a deleted folder releases its port. The working folder is
+# read from the marker's "working-folder:" HTML comment.
 port_reserved() {
   local f folder
   shopt -s nullglob
@@ -75,7 +76,7 @@ port_reserved() {
   shopt -u nullglob
   for f in ${files[@]+"${files[@]}"}; do
     folder="$(sed -n 's/.*working-folder: \(.*\)-->.*/\1/p' "$f" | head -n1)"
-    [ "$folder" != "$PWD" ] && return 0
+    [ "$folder" != "$PWD" ] && [ -d "$folder" ] && return 0
   done
   return 1
 }
