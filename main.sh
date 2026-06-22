@@ -64,7 +64,7 @@ port_reserved() {
   shopt -s nullglob
   local files=("${MARKER_BASE}/"*"-$1/playwright-mcp.html")
   shopt -u nullglob
-  for f in "${files[@]}"; do
+  for f in ${files[@]+"${files[@]}"}; do
     folder="$(sed -n 's/.*working-folder: \(.*\)-->.*/\1/p' "$f" | head -n1)"
     [ "$folder" != "$PWD" ] && return 0
   done
