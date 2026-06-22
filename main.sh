@@ -473,6 +473,10 @@ EOF
   # every run opened a fresh marker tab (the tab flood). Match by DECODING each
   # tab URL (robust to encoding differences), keep one marker tab, close extras
   # (this also cleans up any pre-existing flood), and open one only if none exist.
+  # OPEN-BEFORE-CLOSE: the fresh marker is opened first, then the old marker tabs
+  # are closed (excluding the new id). This avoids a zero-page window — closing
+  # the only page first risks the browser quitting on last-window-close (and even
+  # without a quit it makes the marker visibly blink closed→reopened every run).
   local file_url encoded
   file_url="file://${marker_abs}"
   encoded="$(urlencode "$file_url")"
@@ -511,27 +515,35 @@ const sameUrl = (u) => {
   }
   const markers = tabs.filter((t) => sameUrl(t.url || ""));
   const freshLaunch = markers.length === 0;
-  // Close EVERY existing marker tab (not just extras). The marker HTML is
+  // Open a fresh marker FIRST, recording its id so we never close it below.
+  // Modern Chrome needs PUT on /json/new; older accepts GET. The marker HTML is
   // rewritten each run so it tracks the current config.yml, but CDP HTTP has no
-  // navigate/reload verb — a tab left open keeps its stale, earlier-loaded copy.
-  // Recreating the tab is how we force the freshly written file to reload (and
-  // it still prunes any pre-existing flood down to one).
+  // navigate/reload verb — recreating the tab is how we force the freshly
+  // written file to reload. Opening before closing keeps at least one page alive
+  // at all times (no last-window-close quit, no visible blink).
+  let openedId = null;
+  const tryOpen = async (method) => {
+    try {
+      const r = await req("/json/new?" + encoded, method);
+      if (ok(r)) {
+        try {
+          openedId = JSON.parse(r.body).id;
+        } catch {}
+        return true;
+      }
+    } catch {}
+    return false;
+  };
+  const opened = (await tryOpen("PUT")) || (await tryOpen("GET"));
+  if (!opened) process.exit(1);
+  // Now close every OLD marker tab (excluding the one just opened). This forces
+  // the stale earlier-loaded copies away and prunes any pre-existing flood.
   for (const t of markers) {
+    if (t.id === openedId) continue;
     try {
       await req("/json/close/" + t.id, "GET");
     } catch {}
   }
-  // Open a fresh marker. Modern Chrome needs PUT on /json/new; older accepts GET.
-  let opened = false;
-  try {
-    if (ok(await req("/json/new?" + encoded, "PUT"))) opened = true;
-  } catch {}
-  if (!opened) {
-    try {
-      if (ok(await req("/json/new?" + encoded, "GET"))) opened = true;
-    } catch {}
-  }
-  if (!opened) process.exit(1);
   // Only on a fresh launch do we reuse the blank "New Tab" the browser opens:
   // close the leftover blank page now that the marker is open, so the user is
   // left with just the marker, not New Tab + it. On a re-run against an already
@@ -547,6 +559,7 @@ const sameUrl = (u) => {
   try {
     const after = JSON.parse((await req("/json/list", "GET")).body);
     for (const t of after) {
+      if (t.id === openedId) continue;
       if (t.type === "page" && isBlank(t.url || "")) {
         try {
           await req("/json/close/" + t.id, "GET");
