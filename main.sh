@@ -649,12 +649,20 @@ case "$MCP_EFF" in
     #   --output-mode file      write snapshots/console/network logs to
     #                           --output-dir and reference them in responses
     #                           instead of inlining (upstream default: stdout).
+    #   --caps <all groups>     enable every opt-in capability group on top of
+    #                           core: config, devtools, network, pdf, storage,
+    #                           testing, vision. Notably devtools brings the video
+    #                           tools (browser_start_video / _stop_video /
+    #                           _video_chapter / _video_show_actions), which are
+    #                           CDP-screencast based so they work over
+    #                           --cdp-endpoint. Artifacts land in --output-dir.
     exec npx --yes @playwright/mcp@latest \
       --cdp-endpoint "http://127.0.0.1:${PORT}" \
       --output-dir "$OUTPUT_DIR" \
       --snapshot-mode none \
       --image-responses omit \
-      --output-mode file
+      --output-mode file \
+      --caps config,devtools,network,pdf,storage,testing,vision
     ;;
   chrome-devtools)
     exec npx --yes chrome-devtools-mcp@latest \
