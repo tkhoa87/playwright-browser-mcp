@@ -43,6 +43,7 @@ Each value resolves as **flag > `config.yml` > default**. Port only: legacy `.pl
 
 | Key | Default | Values |
 |-----|---------|--------|
+| `version` | `2` (current `CONFIG_VERSION`) | integer schema version, rewritten every run |
 | `mcp` | `chrome-devtools` | `playwright` \| `chrome-devtools` \| `default` |
 | `port` | first free port from 9222 | any TCP port |
 | `browser` | `chrome` | `chrome` \| `electron` \| `default` |
@@ -77,6 +78,7 @@ The literal `default` (mcp/browser/launch/marker only) is a sentinel: persisted 
 ## Gotchas
 
 - **Config persistence**: port, MCP server, browser, launch, and marker resolve as flag > `config.yml` > default, and resolved values are always written back to `config.yml`. Passing a flag therefore changes future no-flag runs too. Delete the file to restore defaults; edit it to pin values.
+- **Schema version / migration**: `config.yml` carries a `version:` key (current `CONFIG_VERSION=2` in `main.sh`). On read, if `version` is missing or `< CONFIG_VERSION`, the config is migrated — stored `mcp`/`browser`/`launch`/`marker` are discarded (treated as the `default` sentinel) and **only `port` is carried forward** (a stderr note is logged when an existing file is migrated). Explicit flags still win regardless. The rewritten file stamps the current `version`. Bump `CONFIG_VERSION` whenever the meaning of a stored value changes so old configs re-baseline to defaults.
 - **`launch: false` attaches only**: when nothing is listening on the port and `launch` is `false`, no browser is started (a stderr note is logged) — the MCP server then has nothing to attach to unless you started a browser on that port yourself. Default `true` keeps the auto-start behavior.
 - **YAML parsing is naive**: `read_yml` only handles top-level `key: value` lines (trailing `#` comments stripped). No nesting, no quoting — keep `config.yml` flat.
 - **`config.yml` is rewritten every run**: manual edits to values survive (they're read first), but custom comments/formatting are replaced by the canonical template.

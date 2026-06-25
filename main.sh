@@ -18,6 +18,11 @@ MARKER_BASE="${HOME}/Library/Application Support/simple-browser"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PKG_VERSION="$(node -p "require('${SCRIPT_DIR}/package.json').version" 2>/dev/null || true)"
 
+# config.yml schema version. Bump when the meaning of stored values changes.
+# On read, a config with no version or a version < this is migrated: every value
+# except port is reset to the "default" sentinel (see the migration block below).
+CONFIG_VERSION=2
+
 # Code defaults. The literal value "default" (accepted for mcp/browser/launch via
 # flag or config.yml) is a sentinel: it is persisted as-is so it always tracks
 # whatever these constants are, and is resolved to the constant at runtime.
@@ -132,9 +137,20 @@ done
 
 mkdir -p "$CONFIG_DIR"
 
+# Schema migration: a config with no version or a version older than CONFIG_VERSION
+# has its stored mcp/browser/launch/marker discarded (treated as the "default"
+# sentinel) — only port is carried forward. Explicit flags still win (they are
+# resolved before config.yml below regardless of MIGRATE).
+CONFIG_VER="$(read_yml version)"
+MIGRATE=""
+if [ -z "$CONFIG_VER" ] || ! [[ "$CONFIG_VER" =~ ^[0-9]+$ ]] || [ "$CONFIG_VER" -lt "$CONFIG_VERSION" ]; then
+  MIGRATE=1
+  [ -f "$CONFIG_YML" ] && echo "playwright-browser-mcp: config.yml is pre-v${CONFIG_VERSION}; resetting mcp/browser/launch/marker to default (keeping port)" >&2
+fi
+
 # MCP server: flag > config.yml > "default". Unset resolves to the "default"
 # sentinel (persisted as-is, resolved to $DEFAULT_MCP at runtime below).
-if [ -z "$MCP" ]; then
+if [ -z "$MCP" ] && [ -z "$MIGRATE" ]; then
   MCP="$(read_yml mcp)"
 fi
 MCP="${MCP:-default}"
@@ -149,7 +165,7 @@ esac
 
 # Browser: flag > config.yml > "default". Unset resolves to the "default"
 # sentinel (persisted as-is, resolved to $DEFAULT_BROWSER at runtime below).
-if [ -z "$BROWSER" ]; then
+if [ -z "$BROWSER" ] && [ -z "$MIGRATE" ]; then
   BROWSER="$(read_yml browser)"
 fi
 BROWSER="${BROWSER:-default}"
@@ -158,7 +174,7 @@ BROWSER="${BROWSER:-default}"
 # Launch browser when the port is free: flag > config.yml > "default". Unset
 # resolves to the "default" sentinel (persisted as-is, resolved to
 # $DEFAULT_LAUNCH at runtime below).
-if [ -z "$LAUNCH" ]; then
+if [ -z "$LAUNCH" ] && [ -z "$MIGRATE" ]; then
   LAUNCH="$(read_yml launch)"
 fi
 LAUNCH="${LAUNCH:-default}"
@@ -175,7 +191,7 @@ esac
 # to the "default" sentinel (persisted as-is, resolved to $DEFAULT_MARKER at
 # runtime below). The marker HTML file is always written regardless; this only
 # controls whether it is opened as a tab.
-if [ -z "$MARKER" ]; then
+if [ -z "$MARKER" ] && [ -z "$MIGRATE" ]; then
   MARKER="$(read_yml marker)"
 fi
 MARKER="${MARKER:-default}"
@@ -221,6 +237,9 @@ cat > "$CONFIG_YML" <<EOF
 # Resolution per value: CLI flag > this file > default.
 # This file is rewritten every run.
 
+# Config schema version.
+version: ${CONFIG_VERSION}
+
 # MCP server to run.
 # playwright | chrome-devtools | default (${DEFAULT_MCP})
 mcp: ${MCP}
@@ -229,16 +248,15 @@ mcp: ${MCP}
 # any TCP port (default: first free from 9222)
 port: ${PORT}
 
+# Launch simple-browser when nothing is listening on the port.
+# true | false | default (${DEFAULT_LAUNCH})
+launch: ${LAUNCH}
+
 # Browser simple-browser launches when the port is free.
 # chrome | electron | default (${DEFAULT_BROWSER})
 browser: ${BROWSER}
 
-# Launch the browser when nothing is listening on the port.
-# true | false | default (${DEFAULT_LAUNCH})
-launch: ${LAUNCH}
-
-# Open the marker tab in the browser on connect (the marker HTML file is always
-# written regardless; this only controls opening it as a tab).
+# Open Playwright Browser MCP tab in the browser on connect.
 # true | false | default (${DEFAULT_MARKER})
 marker: ${MARKER}
 EOF
