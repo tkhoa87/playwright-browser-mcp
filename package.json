@@ -8,5 +8,11 @@
     "browser-mcp": "main.sh",
     "playwright-browser-mcp": "main.sh",
     "playwright-mcp": "main.sh"
+  },
+  "scripts": {
+    "format": "shfmt -i 2 -ci -w main.sh test/smoke.sh",
+    "format:check": "shfmt -i 2 -ci -d main.sh test/smoke.sh",
+    "lint": "shellcheck main.sh test/smoke.sh",
+    "test": "bash test/smoke.sh"
   }
 }

@@ -76,8 +76,8 @@ EOF
 # Read a top-level "key: value" from config.yml (strips trailing comments).
 read_yml() {
   [ -f "$CONFIG_YML" ] || return 0
-  sed -n "s/^$1:[[:space:]]*//p" "$CONFIG_YML" | head -n1 \
-    | sed 's/[[:space:]]*#.*$//; s/[[:space:]]*$//'
+  sed -n "s/^$1:[[:space:]]*//p" "$CONFIG_YML" | head -n1 |
+    sed 's/[[:space:]]*#.*$//; s/[[:space:]]*$//'
 }
 
 # True if a marker reserves this port for a DIFFERENT working folder that STILL
@@ -104,7 +104,7 @@ LAUNCH=""
 MARKER=""
 while [[ $# -gt 0 ]]; do
   case $1 in
-    -h|--help)
+    -h | --help)
       print_help
       exit 0
       ;;
@@ -142,8 +142,14 @@ mkdir -p "$CONFIG_DIR"
 # Best-effort and non-fatal — a missing git or unwritable .gitignore is ignored.
 if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   if ! { [ -f .gitignore ] && grep -qxE '\.playwright-mcp/?' .gitignore; }; then
-    { [ -f .gitignore ] && [ -s .gitignore ] && [ -n "$(tail -c1 .gitignore)" ] && printf '\n'; \
-      printf '.playwright-mcp/\n'; } >> .gitignore 2>/dev/null || \
+    # Read trailing-newline state before opening the file for append (SC2094:
+    # don't read and write the same file in one pipeline).
+    gi_need_nl=""
+    [ -f .gitignore ] && [ -s .gitignore ] && [ -n "$(tail -c1 .gitignore)" ] && gi_need_nl=1
+    {
+      [ -n "$gi_need_nl" ] && printf '\n'
+      printf '.playwright-mcp/\n'
+    } >>.gitignore 2>/dev/null ||
       echo "playwright-browser-mcp: could not update .gitignore" >&2
   fi
 fi
@@ -166,7 +172,7 @@ if [ -z "$MCP" ] && [ -z "$MIGRATE" ]; then
 fi
 MCP="${MCP:-default}"
 case "$MCP" in
-  playwright|chrome-devtools|default) ;;
+  playwright | chrome-devtools | default) ;;
   *)
     echo "playwright-browser-mcp: unknown MCP server '$MCP' (expected playwright, chrome-devtools, or default)" >&2
     exit 1
@@ -190,7 +196,7 @@ if [ -z "$LAUNCH" ] && [ -z "$MIGRATE" ]; then
 fi
 LAUNCH="${LAUNCH:-default}"
 case "$LAUNCH" in
-  true|false|default) ;;
+  true | false | default) ;;
   *)
     echo "playwright-browser-mcp: unknown launch value '$LAUNCH' (expected true, false, or default)" >&2
     exit 1
@@ -207,7 +213,7 @@ if [ -z "$MARKER" ] && [ -z "$MIGRATE" ]; then
 fi
 MARKER="${MARKER:-default}"
 case "$MARKER" in
-  true|false|default) ;;
+  true | false | default) ;;
   *)
     echo "playwright-browser-mcp: unknown marker value '$MARKER' (expected true, false, or default)" >&2
     exit 1
@@ -243,7 +249,7 @@ if [ -z "$PORT" ]; then
 fi
 
 # Persist resolved config; drop the legacy txt files.
-cat > "$CONFIG_YML" <<EOF
+cat >"$CONFIG_YML" <<EOF
 # playwright-browser-mcp config
 # Resolution per value: CLI flag > this file > default.
 # This file is rewritten every run.
@@ -325,7 +331,7 @@ setup_marker() {
   ic_cursor="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAMAAACdt4HsAAAAS1BMVEVHcExCQTsUEgvt7OxCQTtBQDpBQDpAPzlBQDpBQDoQDgUBAADx8PD39vbZ2NcmJR++vb03NjDp6OjQz82pp6aOjYtiYF56eXdHcEzH0xfqAAAAGXRSTlMAf///4SyH/r1G//////////////////8AvnwSGwAAAkBJREFUWIWll9GigiAMhkvoQAxE0er93/QMrETdRGO3uS+2MfbvcsnsftVaSrVjUmp9vV9Iu2vVe980jdkx/Nn7Xukt4yZ7P31QNPzM9/K29P9T/pDzF+LVX+6v++aUfzxGr3P/k+4JMRP+fvGPhHcUN8X7G4AduJoyKdn8GfDj2ABL9zLVnw0AYLRoD+AQpo/3QXvO/RWsQHPhySF8zCOdAQNqcOJtbujpVBjFRQBN56yYzY3kIWIMVyKFAA+bu6NZQabCX4kUADyDE2uztn1u48Ak6L3gl2dwnd8g9EWu/350lvJPjG0q5BKAwQvWPSHCa4mQeRUNPFvy9Lm5VmVxYB1ngPEdf/o8jm5+eBYA6Fx7xAJmggYMtoMDplzHAvY6Zz6o5QF4XfjO+STa7QFimge194hAKwoA6rpk/i9XBMR7z6XCQPy5CIjXheic+M1ojwHidSEeEdO7gydgUoElPA6IDbzqHCyhOAOYOicHtOIkANs3A8DDnQaIDJBKWANIJawATCWsAGQX9SfAu4QVgCCqAJ8S/gowTd4nPwCmJvgdgA+pOADoeMCwmvUkIA4WGhDfscyfGyzkaIsAk5VwNdoaVRquEfBtAnK4FsY7Aoz/3mFqvBcEBgK+yaUFRkHiBPg0AflQo8QpiCwEpHeMFlkGRVZB5oVUQm5YJam6LzRDfMd2hSYrdU2SumG0JalbENuuKLar5T4uHNwXhYXDvBeO6pWnfulKhLNrX5P71y+e9atv/fI9MYrrv9qs///mKknzam32nQAAAABJRU5ErkJggg=="
   ic_windsurf="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAMAAACdt4HsAAAAPFBMVEVHcEz+9+3//fLq5dv58+kKEA8AAAD59Or58+n58+nb1s1AQT6sqaGMi4WYlY9gX1vKxr22s6wpLCp7enV2e+rjAAAACnRSTlMA////////TMy91SgRkwAAAcNJREFUWIXtl9uWgyAMRUmE2ILWS///XweVS0C0TnmZNcu8lRy2GI6kCCFE+5RfxbMVazy+m77Eo3L+Smhr5kvZii/f38dT1M2X8gbcgH8GgFISUEosZQCbHKBpL8RpJjK6kHgR9ZAAQNMb88d0REoRjTkBDakCYCds7PQlaA9WJUAuXHUrYEjXhsMRIBXCywEUdUlieYMiIBNGgKLmGsAKoQwweBHAhQyg6IWXAHYYiwBFzA1FgN8zJlwAROQpKWBnJInvbQmKA6jXunfk6LMF0Glf1/AxwUyp0AJGBEDtCMFnaJSE8JwIyIXQb75AV4vgM5wntlnxc86F2HcQi8YMiTO3BTsPMiF4QCiw8xmqAwCkQjQeAJNLOJ/RASAK9VK8ibpQtmFbmwEb9scRwAut8fTYUwTYh27j86RHQ8cAL9wMxAAwUhgndQLwQlcL5r43T5ysgAs5wPvsI4ALU4C+CtBlQPDZJwATpgDvs4+AKKQpPaabAOCjewAcHOcQfJYcvoXeaPdybSjZAvwWpT4qNldc3GbGvFNtLY2GJgEXu/NZU4WM+9v2vsP+nT8YN+AG1AGqr33VF8/qq2/95bvy+v8DjMxF+LQW8G0AAAAASUVORK5CYII="
   ic_antigravity="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAMAAACdt4HsAAABYlBMVEVHcEw5iPw2i/IziPztaDo3ifeJwGA6iPhkhug3ifjtVEg6ivgujO00h/8wivRztHQ0iftrgdLrhy41ifA0iPs+mMJNrp7rWEgwifjgryrcVmJ4wXDiUlmPeMCGxWK3w0FhprPZVmJato0pktxVjflCqKqjbqeLxWKQeL/opSZBp6z1Uj3Xuy01ifwwiPg1h/87if8wh/wvivRCiv4vi+8zktxNjPsvjek1ltEwj+Q5nMTwV0BDpK9Rg+hZifJ5e8tMq6C7ZHk+h/k2h/nOW2lXsJBAn7mGdrx1vG9dgd1Jh/SebZ3lU07meDlitoKuZo1kfszdWlOgvlBWk69wgttBhe/Ia14/iOTaZ01Cj87gpSxzfbOHdqeVcaxMh9O7uz90loxwiKFah77GelWfrVdToKGSe4uud2+kcIXlky6Sm22+qENyp37Mh0iHq2pfpo6tmVeuh2LSszGJhonJlkKWi3VeO12PAAAALXRSTlMARBro/o/8f/1lxVMt8q79vAf6/cv6i23YVBo4QcePmg6TzuC5S3QaM6re4bufpM1dAAADxklEQVRYhZ2X+T9iURTAXz2VVIQYxowxY4wxM7wShWwVSrIvlchStopR+P/n3O0t3tqcH933/d5zzj339sFxBjE40dOz3dbxwegbI/z09AEE221tsf9STJyC4IEIYh2t83+aTVEAht+t8l+aRPC4TVJoNYfBi4tms3b6+voIhjw2fG1JcAFRq9WwoJxv2wdB7GMrBcgE5e18Pr8fy7ZSxPgBRKVSe35+fmyUy2VsiMU+WU8A85UKCBpIcAKCbDZrOYURkkDlqfpcbSDDyUl+HxmspjB84HQ6nyCq1epbo3F3d0INVlNwyniIO2RYW0OGbkv8kNOZTnd1ddXr9cvLt5e3WzDEicHanRjGfB3zl5cvL7e39/fxeBwMFmvA/E79LwQIrmSGtX0rwzSUTqd3dtYBv7k5PLyCOEOGXWywUEP3MObXAUcCMBSvzs62qMFKDV0if4ji+rpYLIJhaxcbzPlxzK+uLi5ubBz2AS8z7MbXzGepX+L7+gqFAjLsIcM5TsL8Un9T8oVSqbS3t7dSTFGDqYDxCwtzc8DnmCGVOscGs4MckvjC3OzsbC6XWyqVNsFAFLs/zFog7Y/w+RwyLG1Khs9mLZDx8/PRaDSHFZugoAZjvlvOR6Mzvb29x8fHS0s4CWRInf80FIwp+RlqOMaGoxWkMG5Cv5Kfnp5KJpMJ0QCKlHETfsl5wKeQIJkARYYYQGHEj0j8DOGxAAyZDBja25HAqAlj8v0RHgqFiAAZlrHhyGXUAjUPIYiG5XZQGDWhT1F/iPKCMCk3tOs/rXbF/qGQz+9wu12dvDAZDCbCCSRACpuuwE3nj/C8h/3dFhCCwWA4HIlEkMGhK+iU56/4zI0F4Qwx6AogAbw/4t3KJRsxkBzsOrxXxqvOSm5wa9EQDjpAwHeqV11YgAyR7zqCUfEAfFrLAZZCJKJ9kHapgZoHZReLiHi01jmX2AC/doYu0aBdwyi7QSG9LvvENmiterUnQB50GsLaNTjEG6A/6zwzaBXJTlA9AlLYBGYYUa15WAJJfZ7jBphBvcsAK0BvzHB4BWRACtUKK4A34jnOzwzv9/GzBPQvOw67QA3vNvIyPmDMw2ERQTCsPMkA8NPoDdObISl8NAdFCh46gkZHyMImCEQh/7aX8gPmPLxbzCBl20l+RKwUwIpACrFfbsZr31JVeAVqoJfGy34E9F/bd+GhBgEPg53xGs+YXriYAU0NT/PXeUW0w8EM3Zyr9f3lOTg4fqq1+lm4icDHEd7kBmiFF58mz9n40IDL2r8yqiQCvN/+D+aPcPZ+RgT3AAAAAElFTkSuQmCC"
-  cat > "$marker_html" <<EOF
+  cat >"$marker_html" <<EOF
 <!doctype html>
 <!--playwright-browser-mcp working-folder: ${PWD}-->
 <html lang="en">
@@ -594,7 +600,7 @@ EOF
   encoded="$(urlencode "$file_url")"
 
   if MARKER_PORT="$PORT" MARKER_FILE="$file_url" MARKER_URL="$encoded" \
-    node - <<'NODE' 2>/dev/null
+    node - <<'NODE' 2>/dev/null; then
 const http = require("http");
 const port = process.env.MARKER_PORT;
 const target = process.env.MARKER_FILE; // decoded file:// URL to match against
@@ -682,7 +688,6 @@ const sameUrl = (u) => {
   process.exit(0);
 })();
 NODE
-  then
     return 0
   fi
   echo "playwright-browser-mcp: failed to open marker tab on port ${PORT}" >&2
@@ -705,7 +710,10 @@ urlencode() {
     c="${s:i:1}"
     case "$c" in
       [a-zA-Z0-9._~:/?-]) out+="$c" ;;
-      *) printf -v c '%%%02X' "'$c"; out+="$c" ;;
+      *)
+        printf -v c '%%%02X' "'$c"
+        out+="$c"
+        ;;
     esac
   done
   printf '%s' "$out"

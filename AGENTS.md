@@ -15,7 +15,8 @@ This repo is a tiny wrapper (`main.sh`) that connects a browser-automation MCP s
 ## Project Structure & Module Organization
 
 - `main.sh` — the entire logic; ~150 lines of Bash.
-- `package.json` — defines the CLI name (`playwright-browser-mcp`) and bin entry; no dependencies (everything runs via `npx`).
+- `package.json` — defines the CLI name (`playwright-browser-mcp`) and bin entry; no runtime dependencies (everything runs via `npx`). Also holds the `format`/`lint`/`test` scripts.
+- `test/smoke.sh` — lightweight smoke test (no framework): `bash -n` syntax check, `--help`/`-h` exit 0 with usage, unknown flag rejected. Runs in a scratch dir so it never touches the repo `.gitignore`.
 - `.playwright-mcp/` — runtime config directory (auto-created); stores `config.yml` (persisted MCP server, port, browser — with inline docs) and `output/` (screenshot/artifact dir for `@playwright/mcp`).
 
 ## Build, Test, and Development Commands
@@ -23,6 +24,10 @@ This repo is a tiny wrapper (`main.sh`) that connects a browser-automation MCP s
 - `npm pack` — produces a tarball to verify package contents.
 - `./main.sh [flags]` — runs the wrapper directly.
 - `npx --yes playwright-browser-mcp@latest [flags]` — runs the installed CLI.
+- `npm run format` — format `main.sh` + `test/smoke.sh` in place with `shfmt -i 2 -ci` (2-space indent, indent case bodies).
+- `npm run format:check` — diff-only `shfmt`, non-zero exit on unformatted files (CI/gate use).
+- `npm run lint` — `shellcheck` over `main.sh` + `test/smoke.sh`.
+- `npm test` — run the `test/smoke.sh` smoke test.
 
 ### CLI
 
@@ -55,6 +60,7 @@ The literal `default` (mcp/browser/launch/marker only) is a sentinel: persisted 
 ### Prerequisites
 
 - Node.js and npm must be installed.
+- `shfmt` and `shellcheck` are dev-only prerequisites for `npm run format`/`lint` (e.g. `brew install shfmt shellcheck`); not needed to run the wrapper.
 - `lsof` must be available (used to check whether Chrome is already listening; standard on macOS/Linux).
 - `curl` must be available (used to talk to the CDP endpoint for the marker tab; standard on macOS/Linux). Missing `curl` only skips the marker — the MCP server still runs.
 
@@ -67,8 +73,9 @@ The literal `default` (mcp/browser/launch/marker only) is a sentinel: persisted 
 
 ## Testing Guidelines
 
-- No automated tests are currently defined.
-- If you add tests, document the framework and provide a `npm test` script in `package.json`.
+- `npm test` runs `test/smoke.sh` — a no-framework smoke test that checks `bash -n` syntax, `--help`/`-h` exit 0 with usage text, and unknown-flag rejection (exit 1). Each case runs in a `mktemp -d` scratch dir so the wrapper's `.gitignore` side effect never touches the repo.
+- Smoke test only: it does not launch a browser or an MCP server. Add cases to `test/smoke.sh` for new flags/validation; if a heavier framework is ever needed, document it and update the `test` script.
+- Before committing, run the full gate: `npm run format && npm run lint && npm test`.
 
 ## Commit & Pull Request Guidelines
 
