@@ -137,6 +137,17 @@ done
 
 mkdir -p "$CONFIG_DIR"
 
+# Keep the runtime config dir out of version control: add ".playwright-mcp/" to
+# ./.gitignore if a git repo is present here and the entry is not already listed.
+# Best-effort and non-fatal — a missing git or unwritable .gitignore is ignored.
+if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  if ! { [ -f .gitignore ] && grep -qxE '\.playwright-mcp/?' .gitignore; }; then
+    { [ -f .gitignore ] && [ -s .gitignore ] && [ -n "$(tail -c1 .gitignore)" ] && printf '\n'; \
+      printf '.playwright-mcp/\n'; } >> .gitignore 2>/dev/null || \
+      echo "playwright-browser-mcp: could not update .gitignore" >&2
+  fi
+fi
+
 # Schema migration: a config with no version or a version older than CONFIG_VERSION
 # has its stored mcp/browser/launch/marker discarded (treated as the "default"
 # sentinel) — only port is carried forward. Explicit flags still win (they are
