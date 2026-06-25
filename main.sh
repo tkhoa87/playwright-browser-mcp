@@ -24,6 +24,7 @@ PKG_VERSION="$(node -p "require('${SCRIPT_DIR}/package.json').version" 2>/dev/nu
 DEFAULT_MCP="chrome-devtools"
 DEFAULT_BROWSER="chrome"
 DEFAULT_LAUNCH="true"
+DEFAULT_MARKER="false"
 
 print_help() {
   cat <<EOF
@@ -41,6 +42,7 @@ Flags:
   --port <N>         Browser CDP debugging port.
   --browser <name>   Browser started by simple-browser: chrome, electron, or default.
   --launch <bool>    Start the browser if the port is free: true, false, or default.
+  --marker <bool>    Open the marker tab in the browser on connect: true, false, or default.
   -h, --help         Show this help and exit.
 
 Config resolution (per value): flag > .playwright-mcp/config.yml > default
@@ -51,15 +53,18 @@ it is persisted as-is and resolves to the current built-in default at runtime,
 so it keeps tracking the default if a future version changes it.
 
 Defaults: mcp=chrome-devtools, browser=chrome, port=first free port from 9222,
-launch=true. With launch=false the browser is never started; connect it to the
-port yourself or the MCP server has nothing to attach to.
+launch=true, marker=false. With launch=false the browser is never started;
+connect it to the port yourself or the MCP server has nothing to attach to.
 
-On startup a "marker" tab is opened in the shared browser, served from
+A "marker" page is always written to
 ~/Library/Application Support/simple-browser/<browser>-<port>/playwright-mcp.html
 (persists across reboots), showing the working folder, port, profile, and MCP
-server, so you can tell which repo owns the browser. Best-effort; one marker tab
-per browser instance (deduped). Free-port detection skips a port whose marker
-belongs to a different working folder (the same folder reclaims its own port).
+server, so you can tell which repo owns the browser; it also drives folder-aware
+port reservation. With marker=true it is also opened as a tab in the shared
+browser on connect (best-effort; one marker tab per browser instance, deduped).
+With marker=false (default) the file is written but no tab is opened. Free-port
+detection skips a port whose marker belongs to a different working folder (the
+same folder reclaims its own port).
 EOF
 }
 
@@ -91,6 +96,7 @@ MCP=""
 PORT=""
 BROWSER=""
 LAUNCH=""
+MARKER=""
 while [[ $# -gt 0 ]]; do
   case $1 in
     -h|--help)
@@ -111,6 +117,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --launch)
       LAUNCH="$2"
+      shift 2
+      ;;
+    --marker)
+      MARKER="$2"
       shift 2
       ;;
     *)
@@ -161,6 +171,23 @@ case "$LAUNCH" in
 esac
 [ "$LAUNCH" = default ] && LAUNCH_EFF="$DEFAULT_LAUNCH" || LAUNCH_EFF="$LAUNCH"
 
+# Open the marker tab on connect: flag > config.yml > "default". Unset resolves
+# to the "default" sentinel (persisted as-is, resolved to $DEFAULT_MARKER at
+# runtime below). The marker HTML file is always written regardless; this only
+# controls whether it is opened as a tab.
+if [ -z "$MARKER" ]; then
+  MARKER="$(read_yml marker)"
+fi
+MARKER="${MARKER:-default}"
+case "$MARKER" in
+  true|false|default) ;;
+  *)
+    echo "playwright-browser-mcp: unknown marker value '$MARKER' (expected true, false, or default)" >&2
+    exit 1
+    ;;
+esac
+[ "$MARKER" = default ] && MARKER_EFF="$DEFAULT_MARKER" || MARKER_EFF="$MARKER"
+
 # Port: flag > config.yml > legacy port.txt > first free port from 9222.
 # An explicit --port flag is honored as-is; a port from config.yml/port.txt is
 # subject to the reservation check below.
@@ -209,6 +236,11 @@ browser: ${BROWSER}
 # Launch the browser when nothing is listening on the port.
 # true | false | default (${DEFAULT_LAUNCH})
 launch: ${LAUNCH}
+
+# Open the marker tab in the browser on connect (the marker HTML file is always
+# written regardless; this only controls opening it as a tab).
+# true | false | default (${DEFAULT_MARKER})
+marker: ${MARKER}
 EOF
 rm -f "$LEGACY_PORT_FILE" "${CONFIG_DIR}/mcp.txt" "${CONFIG_DIR}/browser.txt"
 
@@ -234,26 +266,6 @@ setup_marker() {
   local marker_abs="${marker_html}"
   local profile_dir="${HOME}/Library/Application Support/simple-browser/chrome-${PORT}"
   mkdir -p "$marker_dir"
-
-  if ! command -v curl >/dev/null 2>&1; then
-    echo "playwright-browser-mcp: curl not found; skipping marker tab" >&2
-    return 0
-  fi
-
-  # Wait for CDP to answer. Chrome forks on launch so the endpoint lags; this is
-  # a cheap no-op when the browser was already running.
-  local ready="" i
-  for ((i = 0; i < 50; i++)); do
-    if curl -fs --max-time 1 "${cdp}/json/version" >/dev/null 2>&1; then
-      ready=1
-      break
-    fi
-    sleep 0.2
-  done
-  if [ -z "$ready" ]; then
-    echo "playwright-browser-mcp: CDP on port ${PORT} not ready; skipping marker tab" >&2
-    return 0
-  fi
 
   # (Over)write the launch/marker page so its values track the current
   # resolution. Interpolated values are HTML-escaped first. The mcp/port/browser
@@ -511,6 +523,32 @@ window.addEventListener("resize", fitDirs);
 </body>
 </html>
 EOF
+
+  # The marker file is always written (above) so port reservation works; the tab
+  # is only opened when marker is enabled.
+  if [ "$MARKER_EFF" != true ]; then
+    return 0
+  fi
+
+  if ! command -v curl >/dev/null 2>&1; then
+    echo "playwright-browser-mcp: curl not found; skipping marker tab" >&2
+    return 0
+  fi
+
+  # Wait for CDP to answer. Chrome forks on launch so the endpoint lags; this is
+  # a cheap no-op when the browser was already running.
+  local ready="" i
+  for ((i = 0; i < 50; i++)); do
+    if curl -fs --max-time 1 "${cdp}/json/version" >/dev/null 2>&1; then
+      ready=1
+      break
+    fi
+    sleep 0.2
+  done
+  if [ -z "$ready" ]; then
+    echo "playwright-browser-mcp: CDP on port ${PORT} not ready; skipping marker tab" >&2
+    return 0
+  fi
 
   # Dedupe + prune. The marker now lives under "Application Support" — its path
   # contains a space, which Chrome reports percent-encoded (Application%20Support)
