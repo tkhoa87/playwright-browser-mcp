@@ -21,7 +21,7 @@ PKG_VERSION="$(node -p "require('${SCRIPT_DIR}/package.json').version" 2>/dev/nu
 # Code defaults. The literal value "default" (accepted for mcp/browser/launch via
 # flag or config.yml) is a sentinel: it is persisted as-is so it always tracks
 # whatever these constants are, and is resolved to the constant at runtime.
-DEFAULT_MCP="playwright"
+DEFAULT_MCP="chrome-devtools"
 DEFAULT_BROWSER="chrome"
 DEFAULT_LAUNCH="true"
 
@@ -50,7 +50,7 @@ after every run. For mcp/browser/launch the literal "default" is a sentinel:
 it is persisted as-is and resolves to the current built-in default at runtime,
 so it keeps tracking the default if a future version changes it.
 
-Defaults: mcp=playwright, browser=chrome, port=first free port from 9222,
+Defaults: mcp=chrome-devtools, browser=chrome, port=first free port from 9222,
 launch=true. With launch=false the browser is never started; connect it to the
 port yourself or the MCP server has nothing to attach to.
 

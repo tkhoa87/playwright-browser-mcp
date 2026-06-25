@@ -42,7 +42,7 @@ Each value resolves as **flag > `config.yml` > default**. Port only: legacy `.pl
 
 | Key | Default | Values |
 |-----|---------|--------|
-| `mcp` | `playwright` | `playwright` \| `chrome-devtools` \| `default` |
+| `mcp` | `chrome-devtools` | `playwright` \| `chrome-devtools` \| `default` |
 | `port` | first free port from 9222 | any TCP port |
 | `browser` | `chrome` | `chrome` \| `electron` \| `default` |
 | `launch` | `true` | `true` \| `false` \| `default` |
