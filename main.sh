@@ -162,11 +162,22 @@ esac
 [ "$LAUNCH" = default ] && LAUNCH_EFF="$DEFAULT_LAUNCH" || LAUNCH_EFF="$LAUNCH"
 
 # Port: flag > config.yml > legacy port.txt > first free port from 9222.
+# An explicit --port flag is honored as-is; a port from config.yml/port.txt is
+# subject to the reservation check below.
+PORT_PINNED_BY_FLAG=""
+[ -n "$PORT" ] && PORT_PINNED_BY_FLAG=1
 if [ -z "$PORT" ]; then
   PORT="$(read_yml port)"
 fi
 if [ -z "$PORT" ] && [ -f "$LEGACY_PORT_FILE" ]; then
   PORT="$(cat "$LEGACY_PORT_FILE")"
+fi
+# A config/legacy port (not an explicit flag) that a marker reserves for a
+# DIFFERENT, still-existing working folder is released here so the free-port
+# scan picks a fresh one. The same folder keeps reclaiming its own port.
+if [ -n "$PORT" ] && [ -z "$PORT_PINNED_BY_FLAG" ] && port_reserved "$PORT"; then
+  echo "playwright-browser-mcp: port ${PORT} (from config.yml) is reserved by another folder's browser; finding a free port instead" >&2
+  PORT=""
 fi
 if [ -z "$PORT" ]; then
   # Skip ports that are listening OR already reserved by a marker (a stopped
